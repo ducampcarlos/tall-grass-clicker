@@ -145,6 +145,21 @@ await test("a ball is thrown when a creature you do not have yet is defeated", a
   await page.waitForSelector(".battle .throw", { timeout: 3000 });
 });
 
+await test("each kind of place has its own background, on the battle and on the page", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  const seen = new Set();
+  for (const [index, biome] of [[0, "meadow"], [1, "forest"], [2, "cave"], [8, "haunted"], [11, "champion"]]) {
+    await page.evaluate((i) => { const s = window.__game.state; s.settings.autoAdvance = false; s.place = i; s.wild = null; }, index);
+    await page.waitForFunction((b) => document.querySelector(".battle")?.classList.contains(`biome-${b}`), biome);
+    assert.ok(await page.evaluate((b) => document.body.classList.contains(`biome-${b}`), biome), `the page wears ${biome}`);
+    const image = await page.evaluate(() => getComputedStyle(document.querySelector(".battle .scene")).backgroundImage);
+    assert.match(image, new RegExp(`scenes/${biome}\\.png`));
+    seen.add(image);
+  }
+  assert.equal(seen.size, 5);
+});
+
 await test("the language can be changed and is remembered", async () => {
   const page = await newPage({ seed });
   await page.waitForSelector(".tab");

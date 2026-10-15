@@ -19,4 +19,4 @@ The names, the 649 creatures of generations 1 to 5 and their artwork belong to *
 | Boss music | Epic Boss Battle (seamlessly looping) | Juhani Junkala | https://opengameart.org/content/boss-battle-music |
 | Victory music | Medieval: Victory Theme | OpenGameArt contributor | https://opengameart.org/content/medieval-victory-theme |
 
-The app icons and `preview.png` are made for this project (the preview is a screenshot).
+The battle backgrounds (`docs/assets/scenes/`) are original pixel art drawn by code (`scripts/gen-scenes.py`) and are covered by the MIT license. The app icons and `preview.png` are made for this project (the preview is a screenshot).

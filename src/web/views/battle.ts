@@ -1,7 +1,7 @@
 import { t } from "../../i18n/index.js";
 import { species } from "../../engine/dex.js";
 import { type State, killsLeft, goTo } from "../../engine/game.js";
-import { killsToUnlock, place } from "../../engine/regions.js";
+import { type Place, killsToUnlock, place } from "../../engine/regions.js";
 import { formatNumber } from "../../engine/format.js";
 import type { App } from "../app.js";
 import { h, setClass, setText } from "../dom.js";
@@ -9,6 +9,17 @@ import { TYPE_COLORS, placeTitle, typeLabel } from "../labels.js";
 import type { BallId } from "../../engine/rules.js";
 import { BALL_ICON, itemImg } from "../icons.js";
 import { scaleSprite, setSprite, spriteImg } from "../sprites.js";
+
+const BIOMES: Record<string, string> = {
+  Meadow: "meadow", Forest: "forest", Cave: "cave", Lake: "lake", Hills: "hills", Gym: "gym", Swamp: "swamp", Desert: "desert",
+  "Haunted Tower": "haunted", "Power Plant": "power", "Victory Road": "victory", Champion: "champion",
+};
+
+/** Dress an element (the battle card, the page) as the place: its biome picture, tinted by the region's light. */
+export function setBiome(el: HTMLElement, p: Place): void {
+  el.className = el.className.replace(/\b(biome|region)-\w+\s*/g, "").trim();
+  el.classList.add(`biome-${p.tower ? "tower" : (BIOMES[p.name] ?? "meadow")}`, `region-${p.tower ? 5 : p.region}`);
+}
 
 /** The fight: the creature in front of you, its health, and where you are. Click anywhere on it. */
 export class BattleView {
@@ -24,6 +35,7 @@ export class BattleView {
   private readonly types = h("span", { class: "chips" });
   private readonly hpFill = h("i");
   private readonly stage = h("div", { class: "stage" });
+  private readonly scene = h("div", { class: "scene", "aria-hidden": "true" });
   private lastThrow = -1000;
   private readonly hpText = h("span");
   private readonly timerBar = h("div", { class: "bar timer" }, h("i"), h("span"));
@@ -40,6 +52,7 @@ export class BattleView {
       "section",
       { class: "card battle", tabIndex: 0, role: "button", "aria-label": t("Attack the wild creature") },
       h("div", { class: "where" }, this.where, h("div", { class: "nav", on: { pointerdown: (e) => e.stopPropagation() } }, this.prev, this.next, this.furthest)),
+      this.scene,
       this.stage,
       h(
         "div",
@@ -122,8 +135,8 @@ export class BattleView {
     this.timerBar.style.display = w.boss ? "" : "none";
     if (p.index !== this.lastPlace) {
       this.lastPlace = p.index;
-      this.el.className = this.el.className.replace(/\bt-\d+\b/g, "").trim();
-      this.el.classList.add(`t-${p.tower ? 8 : (p.types[0] ?? 0)}`);
+      setBiome(this.el, p);
+      setBiome(document.body, p);
       setText(this.where, placeTitle(p));
     }
     setClass(this.prev, "hidden", false);
