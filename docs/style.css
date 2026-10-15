@@ -329,3 +329,96 @@ body { background: transparent; }
 .family .fam img { width: 40px; height: 30px; image-rendering: pixelated; }
 .family .fam img.dark { filter: brightness(0) opacity(0.5); }
 .family .fam span:empty::before { content: "\00a0"; }
+
+/* the bag: boosters in three tiers */
+.booster { background: var(--panel); border: 3px solid var(--line); border-radius: 8px; padding: 6px 8px; margin-bottom: 6px; }
+.booster.working { border-color: var(--green); }
+.booster .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
+.booster .head .t { font-size: 18px; }
+.booster .head .d { font-size: 13px; color: var(--muted); }
+.booster .status { margin: 4px 0; }
+.booster .status .d { font-size: 14px; color: var(--green); }
+.booster .status .bar { height: 8px; margin-top: 2px; border-width: 2px; }
+.booster:not(.working) .status .d { color: var(--muted); }
+.tiers { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 5px; }
+.tier { display: grid; justify-items: center; gap: 1px; background: var(--bg2); border: 3px solid var(--line); border-radius: 8px; padding: 4px 2px 5px; text-align: center; }
+.tier.t2 { border-color: #4a6592; }
+.tier.t3 { border-color: #8a6ad0; }
+.tier .n { font-size: 14px; line-height: 1.1; }
+.tier .e { font-size: 12px; color: var(--gold); }
+.tier .own { font-size: 15px; }
+.tier .acts { display: flex; flex-wrap: wrap; justify-content: center; gap: 3px; margin-top: 2px; }
+.tier .acts .btn { padding: 2px 6px; }
+
+/* helpers in the Trainer tab */
+.row.helper.locked { opacity: 0.75; }
+.bar.thin { height: 6px; margin-top: 3px; border-width: 2px; }
+.row.helper .bar.timer > i { background: linear-gradient(#9ee6a0, #43ad4d); }
+
+/* mini-games */
+.dialog.minigame { width: min(560px, calc(100vw - 20px)); max-height: calc(100vh - 20px); overflow: auto; }
+.mg-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.mg-head h3 { margin: 0; }
+.mg-body { display: grid; gap: 8px; margin-top: 6px; }
+.mg-info { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-size: 20px; }
+.mg-say { min-height: 26px; text-align: center; font-size: 24px; opacity: 0; transition: opacity 0.15s; }
+.mg-say.show { opacity: 1; }
+.mg-say.good, .mg-say.q3 { color: var(--gold); }
+.mg-say.q2 { color: var(--green); }
+.mg-say.q1 { color: var(--blue); }
+.mg-say.bad { color: var(--red); }
+.mg-result { display: grid; gap: 10px; justify-items: center; text-align: center; padding: 8px 0; }
+.mg-result .stars { font-size: 52px; color: var(--gold); letter-spacing: 6px; text-shadow: 2px 2px 0 #000; }
+.prizes { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+.prize { display: flex; align-items: center; gap: 6px; background: var(--bg2); border: 3px solid var(--line); border-radius: 8px; padding: 3px 10px 3px 6px; }
+
+/* the capture throw */
+.arena { position: relative; overflow: hidden; isolation: isolate; border: 3px solid var(--line); border-radius: 8px; height: 330px; touch-action: manipulation; cursor: crosshair; }
+.arena .scene { position: absolute; inset: 0; z-index: -1; background: var(--scene) center 100% / cover no-repeat; image-rendering: pixelated; filter: var(--tone, none); }
+.throw-stage { position: absolute; inset: 0 0 60px; display: grid; place-items: center; }
+.throw-stage .target-pic { image-rendering: pixelated; filter: drop-shadow(0 8px 0 rgba(0, 0, 0, 0.25)); grid-area: 1 / 1; }
+.focus { grid-area: 1 / 1; position: relative; width: 200px; height: 200px; pointer-events: none; }
+.ring, .ring-mark { position: absolute; left: 50%; top: 50%; border-radius: 50%; box-sizing: border-box; }
+.ring { width: 200px; height: 200px; border: 5px solid #fff; transform: translate(-50%, -50%); }
+.ring.great { border-color: #ffd23d; }
+.ring.excellent { border-color: #5fe06a; }
+.ring.nice { border-color: #ffffff; }
+.ring-mark { transform: translate(-50%, -50%); border: 2px dashed rgba(255, 255, 255, 0.45); }
+.ring-mark.great { width: 140px; height: 140px; }
+.ring-mark.excellent { width: 80px; height: 80px; }
+.flying-ball { position: absolute; left: 50%; bottom: 8px; width: 60px; height: 60px; margin-left: -30px; image-rendering: pixelated; pointer-events: none; transition: transform 0.4s ease-out; }
+.flying-ball.fly { transform: translate(var(--tx), var(--ty)) scale(0.8) rotate(540deg); }
+.flying-ball.shake { transform: translate(var(--tx), var(--ty)) scale(0.8); animation: ball-shake 0.9s ease-in-out; }
+.flying-ball.hidden { opacity: 0; }
+@keyframes ball-shake { 0%, 100% { rotate: 0deg; } 20% { rotate: -22deg; } 40% { rotate: 22deg; } 60% { rotate: -16deg; } 80% { rotate: 10deg; } }
+.arena .mg-say { position: absolute; left: 0; right: 0; top: 10px; text-shadow: 2px 2px 0 #000; }
+.mg-balls { display: flex; gap: 4px; justify-content: center; min-height: 34px; }
+.mg-balls .mini { width: 30px; height: 30px; image-rendering: pixelated; }
+@media (max-width: 440px) { .arena { height: 290px; } .focus, .ring { width: 170px; height: 170px; } .ring-mark.great { width: 120px; height: 120px; } .ring-mark.excellent { width: 68px; height: 68px; } }
+
+/* memory */
+.memory { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.mem-card { position: relative; aspect-ratio: 1; background: var(--panel2); border: 3px solid var(--line); border-radius: 8px; cursor: pointer; padding: 0; perspective: 400px; }
+.mem-card .back, .mem-card .face { position: absolute; inset: 0; display: grid; place-items: center; backface-visibility: hidden; transition: transform 0.25s; }
+.mem-card .back { font-size: 32px; color: var(--muted); background: repeating-linear-gradient(45deg, #2b3d5b 0 8px, #243350 8px 16px); border-radius: 5px; }
+.mem-card .face { transform: rotateY(180deg); background: var(--bg2); border-radius: 5px; }
+.mem-card .face img { width: 80px; height: 60px; image-rendering: pixelated; max-width: 90%; object-fit: contain; }
+.mem-card.open .back { transform: rotateY(180deg); }
+.mem-card.open .face { transform: rotateY(360deg); }
+.mem-card.done { border-color: var(--green); opacity: 0.8; }
+
+/* who's that creature */
+.quiz-stage { display: grid; place-items: center; min-height: 200px; background: radial-gradient(circle at 50% 55%, #3a5a8a, #1c2a3c 70%); border: 3px solid var(--line); border-radius: 8px; }
+.quiz-stage img { image-rendering: pixelated; transition: filter 0.3s; }
+.quiz-stage img.silhouette { filter: brightness(0); }
+.quiz-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+.quiz-options .btn { padding: 8px 6px; }
+
+/* whack-a-mole */
+.holes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.hole { position: relative; height: 112px; background: radial-gradient(ellipse at 50% 85%, #2a1c12 0 38%, transparent 40%), linear-gradient(#6a8f4a, #4a6a38); border: 3px solid var(--line); border-radius: 10px; overflow: hidden; cursor: pointer; padding: 0; touch-action: manipulation; }
+.hole .mole { position: absolute; left: 0; right: 0; bottom: -80px; display: grid; justify-items: center; transition: bottom 0.12s ease-out; pointer-events: none; }
+.hole .mole.up { bottom: 6px; }
+.hole .mole .mole-pic { image-rendering: pixelated; }
+.hole .mole.whacked { filter: brightness(1.8); }
+.hole .mole.boom { filter: hue-rotate(180deg) brightness(1.6); }

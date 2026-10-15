@@ -10,6 +10,9 @@ import { join } from "node:path";
 import { ACHIEVEMENTS } from "../../src/engine/achievements.js";
 import { BRANCH_INFO, PERKS } from "../../src/engine/perks.js";
 import { UPGRADES } from "../../src/engine/rules.js";
+import { HELPERS } from "../../src/engine/helpers.js";
+import { BUFFS } from "../../src/engine/items.js";
+import { GAMES } from "../../src/engine/minigames.js";
 import { ABOUT_LINES, HELP_LINES } from "../../src/web/help.js";
 
 export interface Entry {
@@ -69,6 +72,20 @@ export function keysInContent(): Entry[] {
   for (const a of ACHIEVEMENTS) {
     add(a.name, "achievement name (each one makes everything 2% stronger)");
     add(a.text, `how to earn the achievement ${a.name}`);
+  }
+  for (const b of BUFFS) {
+    add(b.label, "booster kind (an item that works for a while)");
+    add(b.text, `what the ${b.label} does; {value} is the strength of each of its three tiers, like "2 / 3 / 5"`);
+    for (const x of b.tiers) add(x.name, `name of an item of the ${b.label}, one of three tiers`);
+  }
+  for (const h of HELPERS) {
+    add(h.name, "helper name (a chore the game takes over once unlocked)");
+    add(h.text, `what the helper ${h.name} does`);
+    add(h.goal, `what to do to unlock the helper ${h.name}; {n} is the number`);
+  }
+  for (const g of GAMES) {
+    add(g.name, "mini-game name");
+    add(g.text, `how to play the mini-game ${g.name}`);
   }
   for (const line of HELP_LINES) add(line, "paragraph of the How to play panel");
   for (const line of ABOUT_LINES) add(line, "paragraph of the About panel");

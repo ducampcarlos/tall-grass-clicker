@@ -30,13 +30,14 @@ describe("the creature passing through", () => {
 
   it("gives what it says: coins are added to every total, balls and eggs to the bag, candy to the party", () => {
     const seen = new Set<string>();
-    for (let seed = 1; seed < 400 && seen.size < 4; seed++) {
+    for (let seed = 1; seed < 1500 && seen.size < 5; seed++) {
       const s = fresh(seed);
       own(s, 4, 10);
       s.party = [4];
       s.coins = 0;
       s.balls = [0, 0, 0, 0];
       s.bag = [0, 0, 0, 0];
+      s.items = {};
       const before = { runCoins: s.runCoins, lifetime: s.lifetimeCoins, candy: s.dex[4]!.candy };
       const { roam } = claim(s);
       seen.add(roam.kind);
@@ -49,11 +50,15 @@ describe("the creature passing through", () => {
       } else if (roam.kind === "egg") {
         expect(s.bag.reduce((a, b) => a + b, 0)).toBe(1);
         expect(roam.tier).toBeDefined();
+      } else if (roam.kind === "item") {
+        expect(Object.values(s.items).reduce((a, b) => a + b, 0)).toBe(1);
+        expect(roam.buff).toBeDefined();
+        expect(s.items[`${roam.buff}${roam.tier}`]).toBe(1);
       } else {
         expect(s.dex[4]!.candy - before.candy).toBe(roam.amount);
       }
     }
-    expect([...seen].sort()).toEqual(["balls", "candy", "coins", "egg"]);
+    expect([...seen].sort()).toEqual(["balls", "candy", "coins", "egg", "item"]);
   });
 
   it("coins come to about 25 kills' worth, and a shiny one pays four times as much", () => {

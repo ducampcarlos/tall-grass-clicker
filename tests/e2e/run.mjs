@@ -116,7 +116,7 @@ const seed = await demoSeed();
 await test("a saved game opens straight into the battle, and every tab shows", async () => {
   const page = await newPage({ seed });
   await page.waitForSelector(".tab");
-  for (const i of [1, 2, 3, 4, 5]) {
+  for (const i of [1, 2, 3, 4, 5, 6, 7]) {
     await tab(page, i);
     assert.ok(await page.locator(".tab.on, .tab[aria-selected=true]").count(), `tab ${i} is marked`);
   }
@@ -184,8 +184,8 @@ await test("keys switch tabs, attack and mute, but leave text boxes alone", asyn
   await page.waitForSelector(".tab");
   await page.keyboard.press("3");
   assert.ok((await page.locator(".tab:nth-child(3)").getAttribute("class")).includes("on"));
-  await page.keyboard.press("5");
-  assert.ok((await page.locator(".tab:nth-child(5)").getAttribute("class")).includes("on"));
+  await page.keyboard.press("7");
+  assert.ok((await page.locator(".tab:nth-child(7)").getAttribute("class")).includes("on"));
   const clicks = (await game(page)).stats.clicks;
   await page.evaluate(() => document.activeElement?.blur());
   await page.keyboard.press(" ");
@@ -208,7 +208,7 @@ await test("a player stuck at a boss is told that retiring pays", async () => {
 await test("the trainer card can be drawn and saved as a picture", async () => {
   const page = await newPage({ seed, acceptDownloads: true });
   await page.waitForSelector(".tab");
-  await tab(page, 5);
+  await tab(page, 7);
   await page.locator(".btn", { hasText: "Trainer card" }).click();
   await page.waitForSelector("canvas.card-picture");
   const painted = await page.evaluate(() => {
@@ -232,6 +232,126 @@ await test("a creature's evolution line shows in the Pokédex", async () => {
   await page.evaluate(() => window.__game.app.views.dex.select(4));
   await page.waitForSelector(".family .fam");
   assert.equal(await page.locator(".family .fam").count(), 3, "Charmander, Charmeleon, Charizard");
+});
+
+await test("the games stay closed for a new player, and open after a few kills", async () => {
+  const page = await newPage();
+  await page.click(".starter:nth-child(2)");
+  await page.click(".dialog .btn");
+  await tab(page, 6);
+  assert.equal(await page.locator(".row .btn.primary:not([disabled])").count(), 0);
+  await page.evaluate(() => { window.__game.state.stats.kills = 60; });
+  await page.waitForFunction(() => document.querySelectorAll(".row .btn.primary:not([disabled])").length === 4);
+});
+
+await test("Memory Match can be won, pays boosters and sends the game to rest", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { const s = window.__game.state; s.cooldowns = {}; s.stats.kills = 500; s.items = {}; });
+  await tab(page, 6);
+  await page.locator(".row", { hasText: "Memory Match" }).locator(".btn.primary").click();
+  await page.waitForSelector(".memory .mem-card");
+  const ids = await page.$$eval(".mem-card", (cards) => cards.map((c) => c.dataset.id));
+  assert.equal(ids.length, 16);
+  const seen = new Set();
+  for (const id of ids) {
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const at = ids.map((x, i) => (x === id ? i : -1)).filter((i) => i >= 0);
+    for (const i of at) await page.locator(".mem-card").nth(i).click();
+  }
+  await page.waitForSelector(".mg-result .stars", { timeout: 5000 });
+  assert.match(await page.textContent(".mg-result .stars"), /★★★/);
+  assert.ok((await page.locator(".prize").count()) >= 2, "it paid something");
+  await page.click(".mg-result .btn.primary");
+  const s = await game(page);
+  assert.equal(s.stats.games, 1);
+  assert.ok(Object.keys(s.items).length >= 1, "boosters in the bag");
+  assert.ok(s.cooldowns.memory > 100, "memory is resting");
+  assert.equal(await page.locator(".row", { hasText: "Memory Match" }).locator(".btn.primary").count(), 0, "it cannot be played again yet");
+});
+
+await test("the Capture Throw plays through three throws and reports", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { const s = window.__game.state; s.cooldowns = {}; s.stats.kills = 500; });
+  await tab(page, 6);
+  await page.locator(".row", { hasText: "Capture Throw" }).locator(".btn.primary").click();
+  await page.waitForSelector(".arena .target-pic");
+  for (let i = 0; i < 3; i++) {
+    if (await page.locator(".mg-result").count()) break;
+    const box = await page.locator(".arena .target-pic").boundingBox();
+    await page.waitForFunction(() => !document.querySelector(".mg-say.show") || true);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.waitForTimeout(2300);
+  }
+  await page.waitForSelector(".mg-result .stars", { timeout: 8000 });
+  assert.equal((await game(page)).stats.games, 1);
+});
+
+await test("Who's That Creature asks eight questions with four names each", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { const s = window.__game.state; s.cooldowns = {}; s.stats.kills = 500; });
+  await tab(page, 6);
+  await page.locator(".row", { hasText: "Who's That" }).locator(".btn.primary").click();
+  for (let q = 1; q <= 8; q++) {
+    await page.waitForFunction((n) => (document.querySelector(".mg-info")?.textContent ?? "").includes(`${n} `) && /Question|Pregunta|Pergunta/.test(document.querySelector(".mg-info")?.textContent ?? ""), q);
+    assert.equal(await page.locator(".quiz-options .btn").count(), 4);
+    assert.ok(await page.locator(".quiz-stage img.silhouette").count(), "it starts as a shadow");
+    await page.locator(".quiz-options .btn").first().click();
+    assert.equal(await page.locator(".quiz-stage img.silhouette").count(), 0, "and shows itself once answered");
+  }
+  await page.waitForSelector(".mg-result .stars", { timeout: 5000 });
+});
+
+await test("Whack-a-Mole: a mole pops up and tapping it scores", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { const s = window.__game.state; s.cooldowns = {}; s.stats.kills = 500; });
+  await tab(page, 6);
+  await page.locator(".row", { hasText: "Whack" }).locator(".btn.primary").click();
+  await page.waitForSelector(".hole .mole.up");
+  await page.locator(".hole:has(.mole.up)").first().dispatchEvent("pointerdown");
+  const text = await page.textContent(".mg-info");
+  assert.match(text, /Score: -?\d+/);
+  await page.keyboard.press("Escape");
+  assert.equal(await page.locator(".minigame").count(), 0, "it can be quit");
+  assert.equal((await game(page)).stats.games, 0, "and quitting pays nothing");
+});
+
+await test("the bag: buy, use and combine boosters", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { const s = window.__game.state; s.items = { shiny1: 3 }; s.buffs = []; s.coins = 1e12; });
+  await tab(page, 5);
+  const card = page.locator(".booster", { hasText: "Shiny boost" });
+  await card.locator(".tier.t1 .btn.gold").click(); // combine three Stardust
+  let s = await game(page);
+  assert.deepEqual(s.items, { shiny2: 1 });
+  await card.locator(".head .btn").click(); // buy a Stardust
+  s = await game(page);
+  assert.equal(s.items.shiny1, 1);
+  await card.locator(".tier.t2 .btn.primary").click(); // use the Star Piece
+  s = await game(page);
+  assert.equal(s.buffs.length, 1);
+  assert.equal(s.buffs[0].tier, 2);
+  assert.match(await card.locator(".status .d").textContent(), /Working/);
+  assert.ok(await card.locator(".tier.t1 .btn.primary").isDisabled(), "a weaker one cannot replace a stronger one");
+});
+
+await test("a helper opens once its goal is met, and can be switched off", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { const s = window.__game.state; s.settings.helpers = {}; s.stats.hatched = 12; });
+  await page.waitForFunction(() => /helper is ready/.test(document.querySelector("#toasts")?.textContent ?? ""), null, { timeout: 5000 });
+  await tab(page, 7);
+  const row = page.locator(".row.helper", { hasText: "Hatchery" });
+  assert.equal(await row.locator(".btn").textContent(), "On");
+  await row.locator(".btn").click();
+  assert.equal((await game(page)).settings.helpers.hatchery, false);
+  assert.equal(await row.locator(".btn").textContent(), "Off");
+  assert.ok(await page.locator(".row.helper.locked").count() >= 1, "the others are still closed");
 });
 
 await test("each kind of place has its own background, on the battle and on the page", async () => {
@@ -277,7 +397,7 @@ await test("retiring asks first, and starts over keeping the Pokédex", async ()
   await page.waitForSelector(".tab");
   await page.evaluate(() => { const s = window.__game.state; s.maxPlace = 20; s.bestPlace = 20; s.place = 20; });
   const before = await game(page);
-  await tab(page, 5);
+  await tab(page, 7);
   await page.click(".btn.danger");
   await page.click(".dialog .btn.danger");
   const after = await game(page);
@@ -290,7 +410,7 @@ await test("retiring asks first, and starts over keeping the Pokédex", async ()
 await test("a phone-sized screen fits without sideways scrolling", async () => {
   const page = await newPage({ seed, viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true });
   await page.waitForSelector(".tab");
-  for (const i of [1, 2, 3, 4, 5]) {
+  for (const i of [1, 2, 3, 4, 5, 6, 7]) {
     await tab(page, i);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
     assert.ok(over <= 1, `tab ${i} is ${over}px too wide`);

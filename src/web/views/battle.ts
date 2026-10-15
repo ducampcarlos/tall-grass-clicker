@@ -130,6 +130,11 @@ export class BattleView {
     return true;
   }
 
+  /** Tap the passing creature, if there is one (the Collector's Net does). */
+  tapRoamer(): void {
+    this.roamer?.dispatchEvent(new Event("pointerdown"));
+  }
+
   hit(): void {
     this.img.classList.remove("hit");
     void this.img.offsetWidth;

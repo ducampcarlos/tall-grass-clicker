@@ -13,19 +13,24 @@ import { Audio, type Sfx } from "./audio.js";
 import { $, h, replace } from "./dom.js";
 import { TAB_ICON, itemImg } from "./icons.js";
 import { eggLabel, placeTitle } from "./labels.js";
+import { gamesOpen } from "../engine/minigames.js";
+import { helperDef, helperOn, tickHelpers } from "../engine/helpers.js";
+import { tierDef } from "../engine/items.js";
 import type { Profile, Session } from "./session.js";
 import { preload, spriteImg } from "./sprites.js";
 import { dialog, toast } from "./ui.js";
 import { BattleView } from "./views/battle.js";
+import { BagView } from "./views/bag.js";
 import { DexView } from "./views/dex.js";
 import { EggsView } from "./views/eggs.js";
+import { GamesView } from "./views/games.js";
 import { PartyView } from "./views/party.js";
 import { openSettings, showHelp } from "./views/settings.js";
 import { ShopView } from "./views/shop.js";
 import { TrainerView } from "./views/trainer.js";
 import { WorldView } from "./views/world.js";
 
-export type TabId = "shop" | "dex" | "eggs" | "world" | "trainer";
+export type TabId = "shop" | "dex" | "eggs" | "world" | "bag" | "games" | "trainer";
 
 interface View {
   el: HTMLElement;
@@ -168,8 +173,8 @@ export class App {
     }
     this.battle = new BattleView(this);
     this.party = new PartyView(this);
-    this.views = { shop: new ShopView(this), dex: new DexView(this), eggs: new EggsView(this), world: new WorldView(this), trainer: new TrainerView(this) };
-    const labels: Record<TabId, string> = { shop: t("Shop"), dex: t("Pokédex"), eggs: t("Eggs"), world: t("World"), trainer: t("Trainer") };
+    this.views = { shop: new ShopView(this), dex: new DexView(this), eggs: new EggsView(this), world: new WorldView(this), bag: new BagView(this), games: new GamesView(this), trainer: new TrainerView(this) };
+    const labels: Record<TabId, string> = { shop: t("Shop"), dex: t("Pokédex"), eggs: t("Eggs"), world: t("World"), bag: t("Bag"), games: t("Games"), trainer: t("Trainer") };
     this.tabButtons.clear();
     const tabs = h("nav", { class: "tabs", role: "tablist" });
     for (const id of Object.keys(labels) as TabId[]) {
@@ -219,7 +224,9 @@ export class App {
     const dt = Math.min(real, 0.25);
     // a hidden tab is not given frames: the time it missed is time away
     if (real > 5) this.catchUp(real - dt);
-    this.handle(tick(s, dt));
+    const events = tick(s, dt);
+    this.handle(events);
+    this.handle(tickHelpers(s, dt, events));
     this.battle.frame(s);
     this.roamer(now);
     this.uiClock += dt;
@@ -249,12 +256,13 @@ export class App {
     const sp = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)]!.id : 1 + Math.floor(Math.random() * 649);
     const shiny = Math.random() < 1 / 40;
     this.nextRoam = now + 75_000 + Math.random() * 75_000;
-    this.battle.roam(sp, shiny, () => {
+    const claim = () => {
       const events: GameEvent[] = [];
       claimRoamer(this.state, sp, shiny, events);
       this.handle(events);
       this.dirty();
-    });
+    };
+    if (this.battle.roam(sp, shiny, claim) && helperOn(this.state, "net")) window.setTimeout(() => this.battle.tapRoamer(), 1500);
   }
 
   private catchUp(seconds: number): void {
@@ -291,6 +299,8 @@ export class App {
       dex: s.party.some((id) => evolutionTargets(s, id).length > 0),
       eggs: (s.bag.some((n) => n > 0) && s.eggs.length < 1 + (s.upgrades.incubator ?? 0)) || false,
       world: false,
+      bag: Object.keys(s.items).length > 0 && s.buffs.length === 0,
+      games: gamesOpen(s) && Object.keys(s.cooldowns).length === 0,
       trainer: s.marks > 0,
     };
     for (const [id, b] of this.tabButtons) {
@@ -378,10 +388,29 @@ export class App {
           const text =
             e.kind === "coins" ? t("{name} dropped {amount} coins!", { name, amount: formatNumber(e.amount) })
             : e.kind === "balls" ? t("{name} left {amount} balls!", { name, amount: e.amount })
-            : e.kind === "egg" ? t("{name} left an egg: {egg}!", { name, egg: eggLabel(e.tier ?? 0) })
+            : e.kind === "egg" ? t("{name} left an egg: {egg}!", { name, egg: eggLabel((e.tier ?? 0) as 0 | 1 | 2 | 3) })
             : t("{name} shared {amount} candy with your party!", { name, amount: e.amount });
           toast(text, { sprite: e.sp, kind: e.shiny ? "shiny" : "good" });
           this.sound(e.shiny ? "bell" : "coins", 0.7);
+          break;
+        }
+        case "buffEnded":
+          toast(t("{name} ran out.", { name: t(tierDef(e.id, e.tier).name) }), { kind: "bad" });
+          this.sound("back", 0.4);
+          this.dirty();
+          break;
+        case "helperUnlocked": {
+          // several can open in the same moment (an old save with a lot of play): say it once
+          const opened = events.filter((x) => x.t === "helperUnlocked");
+          if (events.find((x) => x.t === "helperUnlocked") !== e) break;
+          toast(
+            opened.length === 1
+              ? t("A helper is ready: {name}! It is on; you can turn it off in the Trainer tab.", { name: t(helperDef(e.id as Parameters<typeof helperDef>[0]).name) })
+              : t("{n} helpers are ready! They are on; you can turn them off in the Trainer tab.", { n: opened.length }),
+            { kind: "big" },
+          );
+          this.sound("bell", 0.8);
+          this.dirty();
           break;
         }
         case "unlocked":
@@ -436,7 +465,7 @@ export class App {
     const target = e.target as HTMLElement;
     if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
     const tabs = Object.keys(this.views) as TabId[];
-    if (e.key >= "1" && e.key <= "5") this.showTab(tabs[Number(e.key) - 1]!);
+    if (e.key >= "1" && e.key <= "7") this.showTab(tabs[Number(e.key) - 1]!);
     else if (e.key === "m" || e.key === "M") this.setMuted(!this.profile.muted);
     else if (e.key === "h" || e.key === "H" || e.key === "?") showHelp();
     else if (e.key === " " && target === document.body) {

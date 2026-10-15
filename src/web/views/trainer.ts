@@ -1,6 +1,8 @@
 import { t, tn } from "../../i18n/index.js";
 import { PLACES_PER_REGION, REGIONS } from "../../engine/regions.js";
-import { PERK_ICON, REGION_BADGE, badgeImg, itemImg } from "../icons.js";
+import { HELPERS, type HelperDef, helperOn, helperProgress, helperUnlocked, setHelper } from "../../engine/helpers.js";
+import { HELPER_ICON, PERK_ICON, REGION_BADGE, badgeImg, itemImg } from "../icons.js";
+import { fill } from "../../i18n/index.js";
 import { ACHIEVEMENTS, ACHIEVEMENT_BONUS } from "../../engine/achievements.js";
 import { canRetire, forgetPerks, globalMult, learnPerk, marksFor, retire, type State } from "../../engine/game.js";
 import { formatDuration, formatNumber } from "../../engine/format.js";
@@ -22,6 +24,8 @@ export class TrainerView {
   private readonly retireButton = h("button", { class: "btn danger", on: { click: () => this.confirmRetire() } }, t("Retire and start over"));
   private readonly marks = h("span", { class: "gold" });
   private readonly nodes = new Map<string, { el: HTMLButtonElement; cost: HTMLElement }>();
+  private readonly helperList = h("div", { class: "rows" });
+  private readonly helperRows: Array<{ def: HelperDef; goal: HTMLElement; bar: HTMLElement; toggle: HTMLButtonElement; box: HTMLElement }> = [];
   private readonly badges = h("div", { class: "badges" });
   private badgeSignature = "";
   private readonly achievements = h("div", { class: "grid2" });
@@ -40,6 +44,14 @@ export class TrainerView {
       }
       tree.append(col);
     }
+    for (const def of HELPERS) {
+      const goal = h("div", { class: "d" });
+      const bar = h("i");
+      const toggle = h("button", { class: "btn small", on: { click: () => this.flip(def) } });
+      const box = h("div", { class: "row helper" }, h("div", { class: "with-icon" }, itemImg(HELPER_ICON[def.id] ?? "poke-ball"), h("div", {}, h("div", { class: "t" }, t(def.name)), h("div", { class: "d" }, t(def.text)), goal, h("div", { class: "bar timer thin" }, bar))), toggle);
+      this.helperRows.push({ def, goal, bar, toggle, box });
+      this.helperList.append(box);
+    }
     this.el = h(
       "div",
       {},
@@ -50,6 +62,9 @@ export class TrainerView {
       h("div", { class: "section-title" }, t("Perks")),
       h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "6px" } }, h("span", {}, t("Marks to spend: "), this.marks), h("button", { class: "btn small", on: { click: () => this.respec() } }, t("Respec"))),
       tree,
+      h("div", { class: "section-title" }, t("Helpers")),
+      h("p", { class: "muted" }, t("Chores the game takes over once you have done enough of them yourself. Each one switches on when it opens.")),
+      this.helperList,
       h("div", { class: "section-title" }, t("Gym badges")),
       this.badges,
       h("div", { class: "section-title" }, t("Your trainer")),
@@ -71,6 +86,12 @@ export class TrainerView {
       { label: t("Save image"), kind: "primary", keepOpen: true, onClick: () => canvas.toBlob((blob) => blob && downloadBlob(blob, "tall-grass-clicker-trainer-card.png"), "image/png") },
       { label: t("Close") },
     ]);
+  }
+
+  private flip(def: HelperDef): void {
+    const s = this.app.state;
+    if (setHelper(s, def.id, !helperOn(s, def.id))) this.app.audio.sfx("toggle", 0.5);
+    this.app.dirty();
   }
 
   private confirmRetire(): void {
@@ -137,6 +158,16 @@ export class TrainerView {
     if (sig !== this.statsSignature) {
       this.statsSignature = sig;
       this.stats.replaceChildren(...rows.map(([k, v]) => h("div", {}, h("span", {}, k), h("b", {}, v))));
+    }
+    for (const r of this.helperRows) {
+      const open = helperUnlocked(s, r.def.id);
+      const p = helperProgress(s, r.def.id);
+      setClass(r.box, "locked", !open);
+      r.bar.style.width = `${(p.have / p.need) * 100}%`;
+      setText(r.goal, open ? (helperOn(s, r.def.id) ? t("Working") : t("Switched off")) : `${fill(t(r.def.goal), { n: formatNumber(p.need) })}: ${formatNumber(p.have)} / ${formatNumber(p.need)}`);
+      r.toggle.disabled = !open;
+      setText(r.toggle, !open ? t("Closed") : helperOn(s, r.def.id) ? t("On") : t("Off"));
+      setClass(r.toggle, "primary", open && helperOn(s, r.def.id));
     }
     const bsig = REGIONS.map((r) => `${s.bestPlace > r.id * PLACES_PER_REGION + 5 ? 1 : 0}${s.champions[r.id] ? 1 : 0}`).join(",");
     if (bsig !== this.badgeSignature) {

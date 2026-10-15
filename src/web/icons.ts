@@ -38,7 +38,9 @@ export const PERK_ICON: Record<string, string> = {
   scent: "max-repel", hunter: "oval-charm", warm: "mystery-egg", seeker: "old-amber",
 };
 
-export const TAB_ICON: Record<string, string> = { shop: "super-potion", dex: "poke-ball", eggs: "mystery-egg", world: "town-map", trainer: "coin-case" };
+export const HELPER_ICON: Record<string, string> = { stocker: "poke-ball", hatchery: "mystery-egg", coach: "focus-band", shopkeeper: "coin-case", sorter: "rare-candy", net: "net-ball", belt: "berry-pouch" };
+
+export const TAB_ICON: Record<string, string> = { shop: "super-potion", dex: "poke-ball", eggs: "mystery-egg", world: "town-map", bag: "berry-pouch", games: "poke-flute", trainer: "coin-case" };
 
 /** The badge each region's gym leader gives. */
 export const REGION_BADGE = [4, 11, 19, 28, 37] as const;

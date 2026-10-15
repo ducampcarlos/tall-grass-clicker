@@ -7,6 +7,9 @@
 import { ACHIEVEMENTS } from "./achievements.js";
 import { MAX_SPECIES, hasSpecies } from "./dex.js";
 import { type DexEntry, type Egg, type Settings, type State, type Stats, type Wild, partySlots, recount } from "./game.js";
+import { isHelperId } from "./helpers.js";
+import { type Buff, isBuffId, isTier, parseItemKey } from "./items.js";
+import { isGameId } from "./minigames.js";
 import { PERKS, perksCost, validPerks } from "./perks.js";
 import { REGION_COUNT, ROUTE_COUNT } from "./regions.js";
 import { EGG_STEPS, MAX_LEVEL, MAX_PARTY, MAX_PLACE, UPGRADES, type EggTier } from "./rules.js";
@@ -111,11 +114,52 @@ export function parseState(text: string): State | null {
     if (!isNum(v)) return null;
     stats[k] = v;
   }
+  // added later: a save from before them has none, which is zero
+  for (const k of ["roamers", "games"] as const) {
+    const v = (r.stats as Record<string, unknown>)[k] ?? 0;
+    if (!isNum(v)) return null;
+    stats[k] = v;
+  }
 
   if (!isObj(r.settings)) return null;
   const { ball, autoAdvance, autoEvolve } = r.settings;
   if (!isInt(ball, 0, 4) || typeof autoAdvance !== "boolean" || typeof autoEvolve !== "boolean") return null;
-  const settings: Settings = { ball, autoAdvance, autoEvolve };
+  const helpers: Record<string, boolean> = {};
+  if (r.settings.helpers !== undefined) {
+    if (!isObj(r.settings.helpers)) return null;
+    for (const [id, on] of Object.entries(r.settings.helpers)) {
+      if (!isHelperId(id) || typeof on !== "boolean") return null;
+      helpers[id] = on;
+    }
+  }
+  const settings: Settings = { ball, autoAdvance, autoEvolve, helpers };
+
+  // boosters in the bag and at work, and the mini-game timers: all added later, so a save from before has none
+  const items: Record<string, number> = {};
+  if (r.items !== undefined) {
+    if (!isObj(r.items)) return null;
+    for (const [key, n] of Object.entries(r.items)) {
+      if (!parseItemKey(key) || !isInt(n, 0, 1e6)) return null;
+      if (n > 0) items[key] = n;
+    }
+  }
+  const buffs: Buff[] = [];
+  if (r.buffs !== undefined) {
+    if (!Array.isArray(r.buffs) || r.buffs.length > 7) return null;
+    for (const b of r.buffs) {
+      if (!isObj(b) || !isBuffId(b.id) || !isTier(b.tier) || !isNum(b.left, 0, 1e6)) return null;
+      if (buffs.some((x) => x.id === b.id)) return null;
+      if (b.left > 0) buffs.push({ id: b.id, tier: b.tier, left: b.left });
+    }
+  }
+  const cooldowns: Record<string, number> = {};
+  if (r.cooldowns !== undefined) {
+    if (!isObj(r.cooldowns)) return null;
+    for (const [id, left] of Object.entries(r.cooldowns)) {
+      if (!isGameId(id) || !isNum(left, 0, 1e5)) return null;
+      if (left > 0) cooldowns[id] = left;
+    }
+  }
 
   if (!isNum(r.savedAt, 0, 8.64e15)) return null;
 
@@ -150,6 +194,9 @@ export function parseState(text: string): State | null {
     achievements: r.achievements as string[],
     stats,
     settings,
+    items,
+    buffs,
+    cooldowns,
     savedAt: r.savedAt,
   };
   if (state.party.length > partySlots(state)) return null;

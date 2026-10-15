@@ -12,6 +12,7 @@ import { ACHIEVEMENTS, ACHIEVEMENT_BONUS } from "./achievements.js";
 import { MAX_SPECIES, SPECIES, type Species, evolutionsOf, isSpecial, species } from "./dex.js";
 import { PERKS, buyPerk, perksCost } from "./perks.js";
 import { PLACES, PLACES_PER_REGION, REGIONS, REGION_COUNT, ROUTE_COUNT, type Place, bossSpecies, killsToUnlock, place, poolOf } from "./regions.js";
+import { BOOSTER_PRICE, BUFF_IDS, type Buff, type BuffId, type Tier, buffMult, buffValue, itemKey, tierDef } from "./items.js";
 import { Rng } from "./rng.js";
 import {
   BALLS, BALL_POWER, BALL_PRICE, BOSS_TIME, TUNING, bossHp, type BallId, CLICK_ATTACK_SHARE, CRIT_BASE, CRIT_CAP, CRIT_MULT, EGG_PRICE, EGG_STEPS, INCUBATOR_PRICES, MAX_EGG_SLOTS,
@@ -62,6 +63,9 @@ export interface Stats {
   bosses: number;
   masterCatches: number;
   playSeconds: number;
+  /** Passing creatures tapped, and mini-games played. */
+  roamers: number;
+  games: number;
 }
 
 export interface Settings {
@@ -69,6 +73,8 @@ export interface Settings {
   ball: number;
   autoAdvance: boolean;
   autoEvolve: boolean;
+  /** The helpers that have been unlocked, and whether each is on. */
+  helpers: Record<string, boolean>;
 }
 
 export interface State {
@@ -108,6 +114,11 @@ export interface State {
   achievements: string[];
   stats: Stats;
   settings: Settings;
+  /** Boosters in the bag, by item ("shiny2" is the second tier of the shiny boost), and the ones working now. */
+  items: Record<string, number>;
+  buffs: Buff[];
+  /** Seconds of play until each mini-game can be played again. */
+  cooldowns: Record<string, number>;
   /** When the game was last saved, for offline progress (ms since 1970; 0 if never). */
   savedAt: number;
 }
@@ -127,9 +138,11 @@ export type GameEvent =
   | { t: "champion"; region: number }
   | { t: "egg"; tier: EggTier }
   | { t: "achievement"; id: string }
-  | { t: "roam"; kind: RoamKind; amount: number; sp: number; shiny: boolean; tier?: EggTier };
+  | { t: "buffEnded"; id: BuffId; tier: Tier }
+  | { t: "helperUnlocked"; id: string }
+  | { t: "roam"; kind: RoamKind; amount: number; sp: number; shiny: boolean; tier?: number; buff?: BuffId };
 
-export type RoamKind = "coins" | "balls" | "egg" | "candy";
+export type RoamKind = "coins" | "balls" | "egg" | "candy" | "item";
 
 // ---- a new game ------------------------------------------------------------------------------
 
@@ -161,8 +174,11 @@ export function newGame(seed: number): State {
     marksTotal: 0,
     perks: [],
     achievements: [],
-    stats: { clicks: 0, crits: 0, kills: 0, caught: 0, shinies: 0, legendary: 0, evolved: 0, hatched: 0, bosses: 0, masterCatches: 0, playSeconds: 0 },
-    settings: { ball: 4, autoAdvance: true, autoEvolve: false },
+    stats: { clicks: 0, crits: 0, kills: 0, caught: 0, shinies: 0, legendary: 0, evolved: 0, hatched: 0, bosses: 0, masterCatches: 0, playSeconds: 0, roamers: 0, games: 0 },
+    settings: { ball: 4, autoAdvance: true, autoEvolve: false, helpers: {} },
+    items: {},
+    buffs: [],
+    cooldowns: {},
     savedAt: 0,
   };
 }
@@ -191,10 +207,10 @@ export const upgradeLevel = (s: State, id: string): number => s.upgrades[id] ?? 
 /** Everything that multiplies every coin and every hit: the marks earned by retiring, the Pokédex and achievements. */
 export const globalMult = (s: State): number => (1 + 0.03 * s.marksTotal) * (1 + 0.004 * s.stats.caught + 0.02 * s.stats.shinies) * (1 + ACHIEVEMENT_BONUS * s.achievements.length);
 
-export const coinMult = (s: State): number => (1 + 0.08 * upgradeLevel(s, "coins")) * (has(s, "jackpot") ? 1.5 : 1) * globalMult(s);
-export const xpMult = (s: State): number => 1 + 0.1 * upgradeLevel(s, "xp");
-export const catchMult = (s: State): number => (1 + 0.04 * upgradeLevel(s, "catch")) * (has(s, "scent") ? 1.2 : 1);
-export const shinyOdds = (s: State): number => SHINY_ODDS * (1 + 0.35 * upgradeLevel(s, "shiny") + (has(s, "hunter") ? 0.5 : 0));
+export const coinMult = (s: State): number => (1 + 0.08 * upgradeLevel(s, "coins")) * (has(s, "jackpot") ? 1.5 : 1) * globalMult(s) * buffMult(s.buffs, "coins");
+export const xpMult = (s: State): number => (1 + 0.1 * upgradeLevel(s, "xp")) * buffMult(s.buffs, "xp");
+export const catchMult = (s: State): number => (1 + 0.04 * upgradeLevel(s, "catch")) * (has(s, "scent") ? 1.2 : 1) * buffMult(s.buffs, "catch");
+export const shinyOdds = (s: State): number => SHINY_ODDS * (1 + 0.35 * upgradeLevel(s, "shiny") + (has(s, "hunter") ? 0.5 : 0)) * buffMult(s.buffs, "shiny");
 export const partySlots = (s: State): number => Math.min(MAX_PARTY, 1 + upgradeLevel(s, "slots"));
 export const eggSlots = (s: State): number => Math.min(MAX_EGG_SLOTS, 1 + upgradeLevel(s, "incubator"));
 export const autoClickRate = (s: State): number => 0.5 * upgradeLevel(s, "auto");
@@ -215,7 +231,7 @@ export function dps(s: State, wild: Wild | null = s.wild): number {
     const e = s.dex[id];
     if (e) sum += attackOfEntry(id, e) * typeFactor(id, wild);
   }
-  return sum * PARTY_DPS_FACTOR * (1 + TUNING.upgradePower * upgradeLevel(s, "train")) * (has(s, "rhythm") ? 1.25 : 1) * globalMult(s);
+  return sum * PARTY_DPS_FACTOR * (1 + TUNING.upgradePower * upgradeLevel(s, "train")) * (has(s, "rhythm") ? 1.25 : 1) * globalMult(s) * buffMult(s.buffs, "power");
 }
 
 /** What one click deals (before a critical hit), led by the first of the party. */
@@ -223,7 +239,7 @@ export function clickDamage(s: State, wild: Wild | null = s.wild): number {
   const lead = s.party[0];
   const e = lead ? s.dex[lead] : undefined;
   const attack = lead && e ? attackOfEntry(lead, e) * typeFactor(lead, wild) : 0;
-  return (1 + CLICK_ATTACK_SHARE * attack) * (1 + TUNING.upgradePower * upgradeLevel(s, "click")) * (has(s, "claws") ? 1.25 : 1) * globalMult(s);
+  return (1 + CLICK_ATTACK_SHARE * attack) * (1 + TUNING.upgradePower * upgradeLevel(s, "click")) * (has(s, "claws") ? 1.25 : 1) * globalMult(s) * buffMult(s.buffs, "power");
 }
 
 // ---- the wild --------------------------------------------------------------------------------
@@ -234,7 +250,7 @@ function pickWild(s: State, rng: Rng, p: Place): number {
   if (p.kind !== "wild") return bossSpecies(p);
   const pool = poolOf(p);
   // the lure bends the odds toward the rare: weight = rate^(1 - 0.02 per level), the common ones lose less than the rare ones gain
-  const exponent = 1 - 0.02 * upgradeLevel(s, "lure");
+  const exponent = Math.max(0.15, 1 - 0.02 * (upgradeLevel(s, "lure") + (buffValue(s.buffs, "lure") ?? 0)));
   let total = 0;
   const weights = pool.map((e) => {
     const w = e.rate ** exponent * e.boost;
@@ -454,7 +470,7 @@ export function bestParty(s: State): number[] {
 
 function addSteps(s: State, steps: number, events: GameEvent[], rng: Rng): void {
   if (s.eggs.length === 0) return;
-  const gain = steps * (has(s, "warm") ? 1.4 : 1);
+  const gain = steps * (has(s, "warm") ? 1.4 : 1) * buffMult(s.buffs, "warm");
   for (let i = s.eggs.length - 1; i >= 0; i--) {
     const egg = s.eggs[i]!;
     egg.steps += gain;
@@ -591,6 +607,7 @@ let achievementClock = new WeakMap<State, number>();
 export function tick(s: State, dt: number, mult = 1): GameEvent[] {
   const events: GameEvent[] = [];
   s.stats.playSeconds += dt;
+  if (mult === 1) runClocks(s, dt, events);
   if (!s.wild) spawn(s);
 
   // helper fingers click on their own, a fractional click carried over to the next tick
@@ -630,6 +647,23 @@ export function tick(s: State, dt: number, mult = 1): GameEvent[] {
   return events;
 }
 
+/** Boosters and mini-game timers run on the time you play, not on the time you are away. */
+function runClocks(s: State, dt: number, events: GameEvent[]): void {
+  for (let i = s.buffs.length - 1; i >= 0; i--) {
+    const b = s.buffs[i]!;
+    b.left -= dt;
+    if (b.left <= 0) {
+      s.buffs.splice(i, 1);
+      events.push({ t: "buffEnded", id: b.id, tier: b.tier });
+    }
+  }
+  for (const id of Object.keys(s.cooldowns)) {
+    const left = s.cooldowns[id]! - dt;
+    if (left <= 0) delete s.cooldowns[id];
+    else s.cooldowns[id] = left;
+  }
+}
+
 const autoCarry = new WeakMap<State, number>();
 
 export function checkAchievements(s: State): GameEvent[] {
@@ -650,6 +684,8 @@ export function offline(s: State, seconds: number): { seconds: number; coins: nu
   const kills = s.stats.kills;
   const step = Math.max(1, span / 600);
   const saved = s.settings.autoAdvance;
+  const working = s.buffs; // away, boosters neither work nor run out
+  s.buffs = [];
   // time away never walks into a boss: it would only be lost to the timer
   for (let t0 = 0; t0 < span; t0 += step) {
     const before = s.stats.playSeconds;
@@ -661,6 +697,7 @@ export function offline(s: State, seconds: number): { seconds: number; coins: nu
     }
   }
   s.settings.autoAdvance = saved;
+  s.buffs = working;
   return { seconds: span, coins: s.coins - coins, kills: s.stats.kills - kills };
 }
 
@@ -718,6 +755,136 @@ export function buyUpgrade(s: State, id: string, amount: number | "max" = 1): Re
   return ok;
 }
 
+/** What `n` kills at the place you are at pay, with everything that multiplies coins. */
+export const killsWorth = (s: State, n: number): number => Math.ceil(killCoins(routeHp(Math.min(s.place, ROUTE_COUNT + 400))) * coinMult(s) * n);
+
+/** Put coins in the purse and in every total. Returns how many. */
+export function payCoins(s: State, coins: number): number {
+  s.coins += coins;
+  s.runCoins += coins;
+  s.lifetimeCoins += coins;
+  return coins;
+}
+
+// ---- boosters --------------------------------------------------------------------------------
+
+export const itemCount = (s: State, id: BuffId, tier: Tier): number => s.items[itemKey(id, tier)] ?? 0;
+
+/** Take items out of the bag; a kind that runs out is removed, so the bag only lists what is in it. */
+function takeItem(s: State, id: BuffId, tier: Tier, n = 1): void {
+  const key = itemKey(id, tier);
+  const left = (s.items[key] ?? 0) - n;
+  if (left > 0) s.items[key] = left;
+  else delete s.items[key];
+}
+
+export function giveItem(s: State, id: BuffId, tier: Tier, n = 1): void {
+  const key = itemKey(id, tier);
+  s.items[key] = (s.items[key] ?? 0) + n;
+}
+
+/**
+ * Use a booster from the bag. The same kind at the same tier adds its time; a higher tier replaces the
+ * one that is working (its time is lost); a lower one is refused while a higher one is working.
+ */
+export function useItem(s: State, id: BuffId, tier: Tier): Result {
+  if (itemCount(s, id, tier) < 1) return fail(t("You do not have that."));
+  const now = s.buffs.find((b) => b.id === id);
+  if (now && now.tier > tier) return fail(t("A stronger one is already working."));
+  const seconds = tierDef(id, tier).seconds;
+  takeItem(s, id, tier);
+  if (now && now.tier === tier) now.left = Math.min(now.left + seconds, seconds * 4);
+  else if (now) {
+    now.tier = tier;
+    now.left = seconds;
+  } else s.buffs.push({ id, tier, left: seconds });
+  return ok;
+}
+
+/** Three boosters of a tier make one of the next. */
+export function craft(s: State, id: BuffId, tier: Tier): Result {
+  if (tier >= 3) return fail(t("That is as far as it goes."));
+  if (itemCount(s, id, tier) < 3) return fail(t("You need three to combine."));
+  takeItem(s, id, tier, 3);
+  giveItem(s, id, (tier + 1) as Tier);
+  return ok;
+}
+
+/** The shop sells the first tier, priced in kills' worth of coins at the furthest place. */
+export const boosterPrice = (s: State, id: BuffId): number => Math.ceil(unit(s) * BOOSTER_PRICE[id] * discount(s, "bargain"));
+
+export function buyBooster(s: State, id: BuffId): Result {
+  const price = boosterPrice(s, id);
+  if (s.coins < price) return fail(t("Not enough coins."));
+  s.coins -= price;
+  giveItem(s, id, 1);
+  return ok;
+}
+
+export { BUFF_IDS };
+
+// ---- the capture mini-game ---------------------------------------------------------------------
+
+export interface Encounter {
+  sp: number;
+  shiny: boolean;
+  /** Balls left to throw (they are free: they do not come out of the bag). */
+  throws: number;
+}
+
+/** The last wild place at or before the one you are in: the creatures that live there are the ones that show up. */
+function wildPlaceFor(s: State): Place {
+  for (let i = Math.min(s.place, ROUTE_COUNT - 1); i >= 0; i--) {
+    const p = place(i);
+    if (p.kind === "wild") return p;
+  }
+  return place(0);
+}
+
+/** A creature from where you are, three throws to catch it. Ones you have not caught are four times as likely. */
+export function startEncounter(s: State): Encounter {
+  const rng = new Rng(s.rng);
+  const pool = poolOf(wildPlaceFor(s));
+  const weights = pool.map((e) => e.rate * e.boost * (caught(s, e.id) ? 1 : 4));
+  let roll = rng.next() * weights.reduce((a, b) => a + b, 0);
+  let sp = pool[pool.length - 1]!.id;
+  for (let i = 0; i < pool.length; i++) {
+    roll -= weights[i]!;
+    if (roll <= 0) {
+      sp = pool[i]!.id;
+      break;
+    }
+  }
+  const shiny = rng.next() < shinyOdds(s) * 8;
+  s.rng = rng.state;
+  entry(s, sp).seen = true;
+  return { sp, shiny, throws: 3 };
+}
+
+/** How a throw went, 0 (missed) to 3 (excellent), against how likely the creature is to be caught. */
+export const THROW_ODDS = [0, 1.1, 1.5, 2.1] as const;
+export const throwChance = (s: State, enc: Encounter, quality: 0 | 1 | 2 | 3): number => Math.min(0.97, catchChance(s, enc.sp, "great", enc.shiny) * THROW_ODDS[quality]);
+
+/** Throw a ball. A caught creature is really caught (or gives candy if you already have it). */
+export function throwAt(s: State, enc: Encounter, quality: 0 | 1 | 2 | 3, events: GameEvent[]): { caught: boolean } {
+  if (enc.throws < 1) return { caught: false };
+  enc.throws--;
+  const rng = new Rng(s.rng);
+  const caughtIt = quality > 0 && rng.next() < throwChance(s, enc, quality);
+  s.rng = rng.state;
+  if (!caughtIt) return { caught: false };
+  const e = entry(s, enc.sp);
+  if (!e.caught || (enc.shiny && !e.shiny)) catchSpecies(s, enc.sp, enc.shiny, events, "great");
+  else {
+    const amount = enc.shiny ? 20 : 3;
+    e.candy += amount;
+    events.push({ t: "candy", sp: enc.sp, amount });
+  }
+  enc.throws = 0;
+  return { caught: true };
+}
+
+
 // ---- the creature passing through --------------------------------------------------------------
 
 /**
@@ -731,39 +898,40 @@ export function claimRoamer(s: State, sp: number, shiny: boolean, events: GameEv
   const mult = shiny ? 4 : 1;
   let kind: RoamKind;
   let amount: number;
-  let eggTier: EggTier | undefined;
-  if (roll < 0.62) {
+  let tier: number | undefined;
+  let buff: BuffId | undefined;
+  const coins = (): number => payCoins(s, killsWorth(s, 25 * mult));
+  if (roll < 0.52) {
     kind = "coins";
-    amount = Math.ceil(killCoins(routeHp(Math.min(s.place, ROUTE_COUNT + 400))) * coinMult(s) * 25 * mult);
-    s.coins += amount;
-    s.runCoins += amount;
-    s.lifetimeCoins += amount;
-  } else if (roll < 0.84) {
+    amount = coins();
+  } else if (roll < 0.7) {
     kind = "balls";
-    const tier = s.maxPlace >= 36 ? 2 : s.maxPlace >= 12 ? 1 : 0;
+    const ball = s.maxPlace >= 36 ? 2 : s.maxPlace >= 12 ? 1 : 0;
     amount = (3 + rng.int(6)) * mult;
-    s.balls[tier] = (s.balls[tier] ?? 0) + amount;
-  } else if (roll < 0.95) {
+    s.balls[ball] = (s.balls[ball] ?? 0) + amount;
+  } else if (roll < 0.8) {
     kind = "egg";
     amount = 1;
-    eggTier = s.maxPlace >= 24 && rng.chance(0.3) ? 1 : 0;
-    s.bag[eggTier] = (s.bag[eggTier] ?? 0) + 1;
-  } else {
-    const owners = s.party.length > 0 ? s.party : [];
+    tier = s.maxPlace >= 24 && rng.chance(0.3) ? 1 : 0;
+    s.bag[tier] = (s.bag[tier] ?? 0) + 1;
+  } else if (roll < 0.85 && s.party.length > 0) {
     kind = "candy";
     amount = 10 * mult;
-    for (const id of owners) entry(s, id).candy += amount;
-    if (owners.length === 0) {
-      kind = "coins";
-      amount = Math.ceil(killCoins(routeHp(Math.min(s.place, ROUTE_COUNT + 400))) * coinMult(s) * 25 * mult);
-      s.coins += amount;
-      s.runCoins += amount;
-      s.lifetimeCoins += amount;
-    }
+    for (const id of s.party) entry(s, id).candy += amount;
+  } else if (roll < 0.85) {
+    kind = "coins";
+    amount = coins();
+  } else {
+    kind = "item";
+    amount = 1;
+    buff = BUFF_IDS[rng.int(BUFF_IDS.length)]!;
+    tier = shiny && rng.chance(0.5) ? 2 : 1;
+    giveItem(s, buff, tier as Tier);
   }
   s.rng = rng.state;
+  s.stats.roamers++;
   entry(s, sp).seen = true;
-  events.push({ t: "roam", kind, amount, sp, shiny, ...(eggTier !== undefined ? { tier: eggTier } : {}) });
+  events.push({ t: "roam", kind, amount, sp, shiny, ...(tier !== undefined ? { tier } : {}), ...(buff ? { buff } : {}) });
   return kind;
 }
 
