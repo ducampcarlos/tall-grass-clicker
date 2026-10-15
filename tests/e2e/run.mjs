@@ -336,8 +336,8 @@ await test("the bag: buy, use and combine boosters", async () => {
   s = await game(page);
   assert.equal(s.buffs.length, 1);
   assert.equal(s.buffs[0].tier, 2);
-  assert.match(await card.locator(".status .d").textContent(), /Working/);
-  assert.ok(await card.locator(".tier.t1 .btn.primary").isDisabled(), "a weaker one cannot replace a stronger one");
+  await page.waitForFunction(() => /Working/.test([...document.querySelectorAll(".booster")].find((b) => b.textContent.includes("Shiny boost"))?.querySelector(".status .d")?.textContent ?? ""));
+  await page.waitForFunction(() => [...document.querySelectorAll(".booster")].find((b) => b.textContent.includes("Shiny boost"))?.querySelector(".tier.t1 .btn.primary")?.disabled === true);
 });
 
 await test("a helper opens once its goal is met, and can be switched off", async () => {
@@ -350,7 +350,7 @@ await test("a helper opens once its goal is met, and can be switched off", async
   assert.equal(await row.locator(".btn").textContent(), "On");
   await row.locator(".btn").click();
   assert.equal((await game(page)).settings.helpers.hatchery, false);
-  assert.equal(await row.locator(".btn").textContent(), "Off");
+  await page.waitForFunction(() => [...document.querySelectorAll(".row.helper")].find((r) => r.textContent.includes("Hatchery"))?.querySelector(".btn")?.textContent === "Off");
   assert.ok(await page.locator(".row.helper.locked").count() >= 1, "the others are still closed");
 });
 
