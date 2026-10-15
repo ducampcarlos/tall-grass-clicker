@@ -1,4 +1,4 @@
-import { t } from "../../i18n/index.js";
+import { t, tn } from "../../i18n/index.js";
 import { ACHIEVEMENTS, ACHIEVEMENT_BONUS } from "../../engine/achievements.js";
 import { canRetire, forgetPerks, globalMult, learnPerk, marksFor, retire, type State } from "../../engine/game.js";
 import { formatDuration, formatNumber } from "../../engine/format.js";
@@ -88,7 +88,7 @@ export class TrainerView {
       setClass(node.el, "owned", owned);
       setClass(node.el, "buyable", !owned && open && s.marks >= perk.cost);
       setClass(node.el, "locked", !owned && !open);
-      setText(node.cost, owned ? t("Owned") : t("{n} marks", { n: perk.cost }));
+      setText(node.cost, owned ? t("Owned") : tn(perk.cost, "{n} mark", "{n} marks"));
     }
     setText(this.mult, t("Everything you earn and deal is multiplied by {n}: {marks} from Marks, {dex} from the Pokédex, {ach} from achievements.", {
       n: formatNumber(globalMult(s)),

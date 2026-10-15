@@ -1,6 +1,6 @@
 /**
  * Where the creatures' pictures come from. They are the animated Black & White sprites of the first
- * five generations, kept in docs/assets/sprites/ (see SPRITES-NOTICE.md). If a file is missing the
+ * five generations, kept in docs/assets/sprites/ (see assets/sprites/NOTICE.md). If a file is missing the
  * picture is asked from the PokeAPI sprites repository instead, so the game still works if the local
  * copies are ever removed.
  */

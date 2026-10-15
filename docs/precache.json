@@ -1,5 +1,5 @@
 {
- "version": "c262665128",
+ "version": "2c99fe5784",
  "files": [
   "./",
   "assets/fonts/KenneyMiniSquare.ttf",
@@ -7,6 +7,7 @@
   "assets/img/apple-touch-icon.png",
   "assets/img/icon-192.png",
   "assets/img/icon-512.png",
+  "assets/img/preview.png",
   "assets/music/boss.ogg",
   "assets/music/menu.ogg",
   "assets/music/victory.ogg",
