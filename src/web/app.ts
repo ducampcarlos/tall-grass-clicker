@@ -11,6 +11,7 @@ import { species } from "../engine/dex.js";
 import { REGIONS, place } from "../engine/regions.js";
 import { Audio, type Sfx } from "./audio.js";
 import { $, h, replace } from "./dom.js";
+import { TAB_ICON, itemImg } from "./icons.js";
 import { placeTitle } from "./labels.js";
 import type { Profile, Session } from "./session.js";
 import { preload, spriteImg } from "./sprites.js";
@@ -151,7 +152,7 @@ export class App {
       "header",
       { class: "top" },
       h("div", { class: "stat" }, h("span", { class: "coin" }), this.coinsEl, this.rateEl),
-      h("div", { class: "stat", title: t("Capture Balls") }, h("span", { class: "ball" }), this.ballsEl),
+      h("div", { class: "stat", title: t("Capture Balls") }, itemImg("poke-ball", "stat-ico"), this.ballsEl),
       h("div", { class: "grow" }),
       h("button", { class: "btn small", on: { click: () => showHelp() } }, "?"),
       h("button", { class: "btn small icon-btn", title: t("Settings"), "aria-label": t("Settings"), on: { click: () => openSettings(this) } }, "⚙"),
@@ -167,7 +168,7 @@ export class App {
     this.tabButtons.clear();
     const tabs = h("nav", { class: "tabs", role: "tablist" });
     for (const id of Object.keys(labels) as TabId[]) {
-      const b = h("button", { class: "tab", role: "tab", on: { click: () => this.showTab(id) } }, labels[id]);
+      const b = h("button", { class: "tab", role: "tab", on: { click: () => this.showTab(id) } }, itemImg(TAB_ICON[id]!), h("span", {}, labels[id]));
       this.tabButtons.set(id, b);
       tabs.append(b);
     }
@@ -313,10 +314,12 @@ export class App {
           break;
         case "caught":
           if (e.fresh || e.shiny) toast(e.fresh ? t("Caught {name}!", { name: species(e.sp).name }) : t("A shiny {name}!", { name: species(e.sp).name }), { sprite: e.sp, kind: e.shiny ? "shiny" : "good" });
+          if (e.fresh || e.shiny) this.battle.throwBall(e.ball, true);
           this.sound(e.shiny ? "bell" : "confirm", e.shiny ? 0.8 : 0.6, e.shiny ? 1.2 : 1);
           this.dirty();
           break;
         case "escaped":
+          this.battle.throwBall(e.ball, false);
           if (this.profile.numbers) this.battle.pop(t("It broke free!"), 120 + Math.random() * 120, 100);
           break;
         case "fled":

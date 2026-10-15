@@ -115,7 +115,7 @@ export interface State {
 export type GameEvent =
   | { t: "kill"; sp: number; coins: number; boss: boolean }
   | { t: "caught"; sp: number; shiny: boolean; fresh: boolean; ball: BallId }
-  | { t: "escaped"; sp: number }
+  | { t: "escaped"; sp: number; ball: BallId }
   | { t: "fled"; sp: number }
   | { t: "candy"; sp: number; amount: number }
   | { t: "levelUp"; sp: number; level: number }
@@ -348,7 +348,7 @@ function resolveWild(s: State, w: Wild, events: GameEvent[], rng: Rng): void {
   if (rng.next() < catchChance(s, w.sp, ball, w.shiny)) catchSpecies(s, w.sp, w.shiny, events, ball);
   else {
     e.pity++;
-    events.push({ t: "escaped", sp: w.sp });
+    events.push({ t: "escaped", sp: w.sp, ball });
   }
 }
 

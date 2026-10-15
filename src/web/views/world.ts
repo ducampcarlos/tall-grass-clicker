@@ -3,6 +3,7 @@ import { goTo, killsLeft, type State } from "../../engine/game.js";
 import { PLACES_PER_REGION, REGIONS, ROUTE_COUNT, killsToUnlock, place } from "../../engine/regions.js";
 import type { App } from "../app.js";
 import { h, setClass, setText } from "../dom.js";
+import { REGION_BADGE, badgeImg } from "../icons.js";
 import { placeName } from "../labels.js";
 
 interface Node {
@@ -26,7 +27,7 @@ export class WorldView {
         const index = region.id * PLACES_PER_REGION + slot;
         const p = place(index);
         const kills = h("span", { class: "k" });
-        const el = h("button", { class: `place ${p.kind !== "wild" ? "boss" : ""}`, on: { click: () => this.go(index) } }, h("span", { class: "n" }, `${slot + 1}. ${placeName(p.name)}${p.kind === "champion" ? " ♛" : p.kind === "gym" ? " ★" : ""}`), kills);
+        const el = h("button", { class: `place ${p.kind !== "wild" ? "boss" : ""}`, on: { click: () => this.go(index) } }, h("span", { class: "n" }, `${slot + 1}. ${placeName(p.name)}${p.kind === "champion" ? " ♛" : ""}`, p.kind === "gym" ? badgeImg(REGION_BADGE[region.id]!, "tiny") : null), kills);
         this.nodes.push({ el, kills, index });
         places.append(el);
       }

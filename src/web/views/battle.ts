@@ -6,6 +6,8 @@ import { formatNumber } from "../../engine/format.js";
 import type { App } from "../app.js";
 import { h, setClass, setText } from "../dom.js";
 import { TYPE_COLORS, placeTitle, typeLabel } from "../labels.js";
+import type { BallId } from "../../engine/rules.js";
+import { BALL_ICON, itemImg } from "../icons.js";
 import { scaleSprite, setSprite, spriteImg } from "../sprites.js";
 
 /** The fight: the creature in front of you, its health, and where you are. Click anywhere on it. */
@@ -21,6 +23,8 @@ export class BattleView {
   private readonly name = h("span", { class: "name" });
   private readonly types = h("span", { class: "chips" });
   private readonly hpFill = h("i");
+  private readonly stage = h("div", { class: "stage" });
+  private lastThrow = -1000;
   private readonly hpText = h("span");
   private readonly timerBar = h("div", { class: "bar timer" }, h("i"), h("span"));
   private readonly killFill = h("i");
@@ -36,18 +40,19 @@ export class BattleView {
       "section",
       { class: "card battle", tabIndex: 0, role: "button", "aria-label": t("Attack the wild creature") },
       h("div", { class: "where" }, this.where, h("div", { class: "nav", on: { pointerdown: (e) => e.stopPropagation() } }, this.prev, this.next, this.furthest)),
-      h("div", { class: "stage" }, this.img, this.sparkle),
+      this.stage,
       h(
         "div",
         { class: "info" },
         h("div", { class: "line" }, this.name, this.types),
-        h("div", { class: "bar" }, this.hpFill, this.hpText),
+        h("div", { class: "hprow" }, h("span", { class: "hptag" }, "HP"), h("div", { class: "bar hp" }, this.hpFill, this.hpText)),
         this.timerBar,
         this.kills,
       ),
       this.floaters,
       this.hint,
     );
+    this.stage.append(this.img, this.sparkle);
     this.el.addEventListener("pointerdown", (e) => {
       if ((e.target as HTMLElement).closest(".nav")) return;
       const box = this.el.getBoundingClientRect();
@@ -77,6 +82,16 @@ export class BattleView {
     const el = h("div", { class: `floater ${kind}`, style: { left: `${x}px`, top: `${y - 20}px` } }, text);
     this.floaters.append(el);
     window.setTimeout(() => el.remove(), 900);
+  }
+
+  /** A ball thrown at the creature: it wobbles, then either bursts open in a flash or the creature breaks free. */
+  throwBall(ball: BallId, caught: boolean): void {
+    const now = performance.now();
+    if (now - this.lastThrow < 400) return;
+    this.lastThrow = now;
+    const el = itemImg(BALL_ICON[ball], `throw ${caught ? "caught" : "broke"}`);
+    this.stage.append(el);
+    window.setTimeout(() => el.remove(), 1300);
   }
 
   hit(): void {
@@ -126,6 +141,8 @@ export class BattleView {
     }
     const ratio = Math.max(0, Math.min(1, w.hp / w.maxHp));
     this.hpFill.style.width = `${ratio * 100}%`;
+    const hpClass = ratio > 0.5 ? "" : ratio > 0.2 ? "mid" : "low";
+    if (this.hpFill.className !== hpClass) this.hpFill.className = hpClass;
     setText(this.hpText, `${formatNumber(Math.max(0, w.hp))} / ${formatNumber(w.maxHp)}`);
     if (w.boss) {
       const bar = this.timerBar.firstElementChild as HTMLElement;

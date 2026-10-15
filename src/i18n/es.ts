@@ -354,4 +354,6 @@ export const ES: Record<string, string> = {
   "{done}/{need}": "{done}/{need}",
   "Boss": "Jefe",
   "Furthest floor: {n}": "Piso más alto: {n}",
+  "Gym badges": "Medallas de gimnasio",
+  "{name} gym badge": "Medalla de gimnasio de {name}",
 };

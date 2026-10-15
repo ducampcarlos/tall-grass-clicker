@@ -354,4 +354,6 @@ export const PT: Record<string, string> = {
   "{done}/{need}": "{done}/{need}",
   "Boss": "Chefe",
   "Furthest floor: {n}": "Andar mais distante: {n}",
+  "Gym badges": "Insígnias de ginásio",
+  "{name} gym badge": "Insígnia de ginásio de {name}",
 };

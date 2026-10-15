@@ -42,10 +42,6 @@ small { color: var(--muted); }
 .top .stat small { font-size: 14px; }
 .top .grow { flex: 1; }
 .coin { display: inline-block; width: 18px; height: 18px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff3a8, var(--gold) 55%, #c78a00); border: 2px solid #7a5400; align-self: center; }
-.ball { display: inline-block; width: 16px; height: 16px; border-radius: 50%; background: linear-gradient(#ff5d52 0 46%, #20283a 46% 54%, #f2f2f2 54%); border: 2px solid var(--line); align-self: center; }
-.ball.great { background: linear-gradient(#4da3ff 0 46%, #20283a 46% 54%, #f2f2f2 54%); }
-.ball.ultra { background: linear-gradient(#ffd23d 0 46%, #20283a 46% 54%, #f2f2f2 54%); }
-.ball.master { background: linear-gradient(#b061ff 0 46%, #20283a 46% 54%, #f2f2f2 54%); }
 .btn { background: var(--panel2); border: 3px solid var(--line); border-bottom-width: 6px; border-radius: 8px; padding: 5px 12px 3px; min-height: 36px; box-shadow: none; transition: transform 0.05s; }
 .btn:hover:not(:disabled) { background: #36507a; }
 .btn:active:not(:disabled) { transform: translateY(3px); border-bottom-width: 3px; }
@@ -230,3 +226,58 @@ small { color: var(--muted); }
 .legal { font-size: 13px; color: var(--muted); border-top: 2px dotted var(--edge); padding-top: 6px; }
 .legal a { color: var(--blue); }
 a { color: var(--blue); }
+
+/* ---- item icons, badges and the battle's flourishes ---------------------------------------- */
+.ico { width: 30px; height: 30px; flex: none; image-rendering: pixelated; vertical-align: middle; }
+.ico.badge { image-rendering: auto; width: 34px; height: 34px; object-fit: contain; }
+.ico.tiny { width: 18px; height: 18px; margin-left: 4px; }
+.ico.inline { width: 24px; height: 24px; margin: -4px 4px -4px -4px; }
+.with-icon { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.with-icon > div { min-width: 0; }
+.top .stat .stat-ico { align-self: center; }
+.tab { display: inline-flex; flex-direction: column; align-items: center; gap: 0; padding-top: 3px; }
+.tab .ico { width: 30px; height: 30px; }
+@media (min-width: 900px) { .tab { flex-direction: row; gap: 6px; padding: 3px 10px; } .tab .ico { width: 24px; height: 24px; image-rendering: auto; } }
+.tab:not(.on) .ico { filter: saturate(0.7) brightness(0.9); }
+.node .t .with-icon { font-size: 17px; }
+
+/* the health bar: green, then yellow, then red, as in the games */
+.hprow { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.hprow .bar { flex: 1; margin-top: 0; }
+.hptag { color: #ffb347; font-size: 14px; text-shadow: 1px 1px 0 #000; }
+.bar.hp > i { background: linear-gradient(#8ff08f, #3fbf4a); transition: width 0.12s linear; }
+.bar.hp > i.mid { background: linear-gradient(#ffe27a, #e6b800); }
+.bar.hp > i.low { background: linear-gradient(#ff8a7e, #e0463a); }
+
+/* a ball thrown at the creature */
+.battle .throw { position: absolute; left: 50%; bottom: 30px; width: 60px; height: 60px; margin-left: -30px; z-index: 3; pointer-events: none; }
+.battle .throw.caught { animation: ball-caught 1.2s ease-out forwards; }
+.battle .throw.broke { animation: ball-broke 0.9s ease-out forwards; }
+@keyframes ball-caught {
+  0% { transform: translateY(-120px) scale(0.5) rotate(0); opacity: 0; }
+  20% { transform: translateY(0) scale(1) rotate(180deg); opacity: 1; }
+  30% { transform: translateX(-10px) rotate(-18deg); }
+  40% { transform: translateX(10px) rotate(18deg); }
+  50% { transform: translateX(-8px) rotate(-14deg); }
+  60% { transform: translateX(0) rotate(0); }
+  80% { transform: scale(1); opacity: 1; filter: brightness(1); }
+  100% { transform: scale(1.8); opacity: 0; filter: brightness(2.5); }
+}
+@keyframes ball-broke {
+  0% { transform: translateY(-120px) scale(0.5) rotate(0); opacity: 0; }
+  25% { transform: translateY(0) scale(1) rotate(180deg); opacity: 1; }
+  45% { transform: translateX(-10px) rotate(-18deg); }
+  65% { transform: translateX(10px) rotate(18deg); }
+  100% { transform: translateY(-40px) scale(1.4) rotate(40deg); opacity: 0; filter: brightness(2); }
+}
+
+/* the gym badges in the Trainer tab and on the gyms of the World tab */
+.badges { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.badge-slot { position: relative; display: grid; justify-items: center; gap: 2px; background: var(--panel); border: 3px solid var(--gold); border-radius: 8px; padding: 6px 2px 3px; }
+.badge-slot .ico.badge { width: 44px; height: 44px; }
+.badge-slot .k { font-size: 13px; color: var(--muted); }
+.badge-slot .crown { position: absolute; top: 0; right: 4px; color: var(--gold); font-size: 16px; text-shadow: 1px 1px 0 #000; }
+.badge-slot.locked { border-color: var(--line); }
+.badge-slot.locked .ico { filter: grayscale(1) brightness(0.35); }
+.place .n { display: flex; align-items: center; }
+@media (prefers-reduced-motion: reduce) { .battle .throw { animation-duration: 0.01s !important; } }

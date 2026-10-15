@@ -4,6 +4,7 @@ import { type State, affordableBalls, ballPrice, buyBall, buyUpgrade, partySlots
 import { BALLS, type BallId, UPGRADES } from "../../engine/rules.js";
 import type { App } from "../app.js";
 import { h, setClass, setText } from "../dom.js";
+import { BALL_ICON, UPGRADE_ICON, itemImg } from "../icons.js";
 import { ballLabel, ballLabels } from "../labels.js";
 
 interface Row {
@@ -37,7 +38,7 @@ export class ShopView {
       upgrades,
       h("div", { class: "section-title" }, t("Balls")),
       balls,
-      h("div", { class: "row" }, h("div", {}, h("div", { class: "t" }, t("Master Balls")), h("div", { class: "d" }, t("Never miss. Kept for the legendary ones. They are gifts: the first win over each champion gives one."))), h("b", {}, this.master)),
+      h("div", { class: "row" }, h("div", { class: "with-icon" }, itemImg("master-ball"), h("div", {}, h("div", { class: "t" }, t("Master Balls")), h("div", { class: "d" }, t("Never miss. Kept for the legendary ones. They are gifts: the first win over each champion gives one.")))), h("b", {}, this.master)),
       h("div", { class: "row" }, h("div", {}, h("div", { class: "t" }, t("Ball to throw")), h("div", { class: "d" }, t("Creatures you already have never need one."))), this.choose),
     );
     this.fillChoose();
@@ -68,7 +69,7 @@ export class ShopView {
     const price = h("span", { class: "price" });
     const buy = h("button", { class: "btn small", on: { click: () => this.buy(id) } }, price);
     this.rows.push({ name, lvl, desc, buy, price, id });
-    return h("div", { class: "row" }, h("div", {}, h("div", { class: "t" }, name, " ", lvl), desc), buy);
+    return h("div", { class: "row" }, h("div", { class: "with-icon" }, itemImg(UPGRADE_ICON[id] ?? "poke-ball"), h("div", {}, h("div", { class: "t" }, name, " ", lvl), desc)), buy);
   }
 
   private buy(id: string): void {
@@ -84,7 +85,7 @@ export class ShopView {
     const ten = h("button", { class: "btn small", on: { click: () => this.buyBalls(ball, 10) } }, "x10");
     const max = h("button", { class: "btn small", on: { click: () => this.buyBalls(ball, Math.min(999, affordableBalls(this.app.state, ball))) } }, t("Max"));
     this.ballRows.push({ ball, own, price, one, ten, max });
-    return h("div", { class: "row" }, h("div", {}, h("div", { class: "t" }, h("span", { class: `ball ${ball}` }), " ", ballLabel(ball), " ", own), h("div", { class: "d" }, price)), h("div", { style: { display: "flex", gap: "4px" } }, one, ten, max));
+    return h("div", { class: "row" }, h("div", { class: "with-icon" }, itemImg(BALL_ICON[ball]), h("div", {}, h("div", { class: "t" }, ballLabel(ball), " ", own), h("div", { class: "d" }, price))), h("div", { style: { display: "flex", gap: "4px" } }, one, ten, max));
   }
 
   private buyBalls(ball: Exclude<BallId, "master">, n: number): void {

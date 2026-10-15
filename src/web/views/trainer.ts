@@ -1,4 +1,6 @@
 import { t, tn } from "../../i18n/index.js";
+import { PLACES_PER_REGION, REGIONS } from "../../engine/regions.js";
+import { PERK_ICON, REGION_BADGE, badgeImg, itemImg } from "../icons.js";
 import { ACHIEVEMENTS, ACHIEVEMENT_BONUS } from "../../engine/achievements.js";
 import { canRetire, forgetPerks, globalMult, learnPerk, marksFor, retire, type State } from "../../engine/game.js";
 import { formatDuration, formatNumber } from "../../engine/format.js";
@@ -18,6 +20,8 @@ export class TrainerView {
   private readonly retireButton = h("button", { class: "btn danger", on: { click: () => this.confirmRetire() } }, t("Retire and start over"));
   private readonly marks = h("span", { class: "gold" });
   private readonly nodes = new Map<string, { el: HTMLButtonElement; cost: HTMLElement }>();
+  private readonly badges = h("div", { class: "badges" });
+  private badgeSignature = "";
   private readonly achievements = h("div", { class: "grid2" });
   private readonly achTitle = h("div", { class: "section-title" });
   private achSignature = "";
@@ -28,7 +32,7 @@ export class TrainerView {
       const col = h("div", { class: "branch" }, h("h4", {}, t(BRANCH_INFO[branch].name)), h("div", { class: "muted", style: { textAlign: "center", marginBottom: "4px" } }, t(BRANCH_INFO[branch].blurb)));
       for (const perk of PERKS.filter((p) => p.branch === branch)) {
         const cost = h("span", {});
-        const el = h("button", { class: "node", on: { click: () => this.learn(perk) } }, h("div", { class: "t" }, h("span", {}, t(perk.name)), cost), h("div", { class: "d" }, t(perk.text)));
+        const el = h("button", { class: "node", on: { click: () => this.learn(perk) } }, h("div", { class: "t" }, h("span", { class: "with-icon" }, itemImg(PERK_ICON[perk.id] ?? "poke-ball"), h("span", {}, t(perk.name))), cost), h("div", { class: "d" }, t(perk.text)));
         this.nodes.set(perk.id, { el, cost });
         col.append(el);
       }
@@ -44,6 +48,8 @@ export class TrainerView {
       h("div", { class: "section-title" }, t("Perks")),
       h("div", { style: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "8px", marginBottom: "6px" } }, h("span", {}, t("Marks to spend: "), this.marks), h("button", { class: "btn small", on: { click: () => this.respec() } }, t("Respec"))),
       tree,
+      h("div", { class: "section-title" }, t("Gym badges")),
+      this.badges,
       h("div", { class: "section-title" }, t("Your trainer")),
       this.mult,
       this.stats,
@@ -116,6 +122,16 @@ export class TrainerView {
     if (sig !== this.statsSignature) {
       this.statsSignature = sig;
       this.stats.replaceChildren(...rows.map(([k, v]) => h("div", {}, h("span", {}, k), h("b", {}, v))));
+    }
+    const bsig = REGIONS.map((r) => `${s.bestPlace > r.id * PLACES_PER_REGION + 5 ? 1 : 0}${s.champions[r.id] ? 1 : 0}`).join(",");
+    if (bsig !== this.badgeSignature) {
+      this.badgeSignature = bsig;
+      this.badges.replaceChildren(
+        ...REGIONS.map((r) => {
+          const gym = s.bestPlace > r.id * PLACES_PER_REGION + 5;
+          return h("div", { class: `badge-slot ${gym ? "" : "locked"}`, title: t("{name} gym badge", { name: r.name }) }, badgeImg(REGION_BADGE[r.id]!), s.champions[r.id] ? h("span", { class: "crown" }, "♛") : null, h("span", { class: "k" }, r.name));
+        }),
+      );
     }
     const asig = s.achievements.join(",");
     if (asig !== this.achSignature) {

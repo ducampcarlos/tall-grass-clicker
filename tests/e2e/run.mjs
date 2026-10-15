@@ -136,6 +136,15 @@ await test("buying an upgrade in the shop spends coins and raises its level", as
   assert.ok(after.coins < before.coins);
 });
 
+await test("a ball is thrown when a creature you do not have yet is defeated", async () => {
+  const page = await newPage();
+  await page.click(".starter:nth-child(2)");
+  await page.click(".dialog .btn");
+  await page.evaluate(() => { const s = window.__game.state; s.balls[0] = 50; s.wild.sp = 129; s.wild.hp = 1; s.wild.shiny = false; s.wild.boss = false; });
+  await page.click(".battle .stage");
+  await page.waitForSelector(".battle .throw", { timeout: 3000 });
+});
+
 await test("the language can be changed and is remembered", async () => {
   const page = await newPage({ seed });
   await page.waitForSelector(".tab");

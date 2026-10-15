@@ -10,7 +10,7 @@
 
 > **Play it:** <https://ducampcarlos.github.io/tall-grass-clicker/>. It is free, has no ads, no accounts and no donations, runs offline once loaded and can be installed like an app.
 
-> **Not affiliated with Nintendo, Creatures Inc., GAME FREAK inc. or The Pokémon Company.** Pokémon and its characters are their trademarks and artwork. This is a non-commercial fan project, and the pictures are not covered by the MIT license: see [Legal](#legal).
+> **Not affiliated with Nintendo, Creatures Inc., GAME FREAK inc. or The Pokémon Company.** Pokémon and its characters are their trademarks and artwork. This is a non-commercial fan project, and the pictures and icons are not covered by the MIT license: see [Legal](#legal).
 
 ## How it plays
 
@@ -42,6 +42,7 @@ Needs Node 22 or newer. `npm run dev` rebuilds on change. The game is the `docs/
 | `npm run balance` | a bot plays the game and prints the pace (informational) |
 | `npm run dex` | regenerates `src/engine/dex.generated.ts` from the PokeAPI CSVs in `data/` |
 | `npm run sprites` | downloads the sprites into `docs/assets/sprites/` |
+| `bash scripts/fetch-ui.sh` | downloads the item icons and gym badges of the interface |
 
 ## How it is built
 

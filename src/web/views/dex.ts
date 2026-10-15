@@ -6,6 +6,7 @@ import { MAX_LEVEL, xpNeed } from "../../engine/rules.js";
 import { formatNumber } from "../../engine/format.js";
 import type { App } from "../app.js";
 import { h, setClass } from "../dom.js";
+import { itemImg } from "../icons.js";
 import { TYPE_COLORS, placeName, typeLabel, typeLabels } from "../labels.js";
 import { spriteImg } from "../sprites.js";
 
@@ -186,7 +187,7 @@ export class DexView {
         if (inParty > 0) actions.append(h("button", { class: "btn small", on: { click: () => this.lead(id) } }, t("Make leader")));
         if (s.party.length > 1) actions.append(h("button", { class: "btn small", on: { click: () => this.remove(inParty) } }, t("Remove from party")));
       }
-      actions.append(h("button", { class: "btn small gold", disabled: e!.candy < 10 || e!.level >= MAX_LEVEL, on: { click: () => this.candy(id) } }, t("Use candy ({n})", { n: e!.candy })));
+      actions.append(h("button", { class: "btn small gold", disabled: e!.candy < 10 || e!.level >= MAX_LEVEL, on: { click: () => this.candy(id) } }, itemImg("rare-candy", "inline"), t("Use candy ({n})", { n: e!.candy })));
       for (const to of evolutionsOf(id)) {
         const need = species(to).evoLevel;
         const ready = e!.level >= need;
