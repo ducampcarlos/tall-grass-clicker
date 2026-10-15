@@ -13,6 +13,9 @@ import { Audio, type Sfx } from "./audio.js";
 import { $, h, replace } from "./dom.js";
 import { TAB_ICON, itemImg } from "./icons.js";
 import { eggLabel, placeTitle } from "./labels.js";
+import { applyAppearance } from "./appearance.js";
+import { backupNow } from "./backups.js";
+import { installDrop, remindToExport } from "./saveio.js";
 import { gamesOpen } from "../engine/minigames.js";
 import { helperDef, helperOn, tickHelpers } from "../engine/helpers.js";
 import { tierDef } from "../engine/items.js";
@@ -49,6 +52,9 @@ export class App {
   private tabButtons = new Map<TabId, HTMLButtonElement>();
   /** When the next creature crosses the battle (performance.now() ms). */
   private nextRoam = 0;
+  /** When to look at the safety copies and at the reminder to export (performance.now() ms). */
+  private nextBackup = 0;
+  private nextReminder = 0;
   /** Boss failures in a row at one place, to tell a stuck player that retiring pays. */
   private bossFails = { place: -1, count: 0, hinted: -1 };
   private viewHost!: HTMLElement;
@@ -82,6 +88,7 @@ export class App {
   // ---- starting ----------------------------------------------------------------------------
 
   start(): void {
+    applyAppearance(this.profile);
     const unlock = () => this.audio.unlock();
     window.addEventListener("pointerdown", unlock, { once: false });
     window.addEventListener("keydown", unlock, { once: false });
@@ -95,6 +102,7 @@ export class App {
       this.welcomeBack();
     }
     window.addEventListener("keydown", (e) => this.hotkey(e));
+    installDrop(this);
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) this.session.save();
     });
@@ -200,6 +208,7 @@ export class App {
   showTab(id: TabId): void {
     this.tab = id;
     for (const [key, b] of this.tabButtons) b.classList.toggle("on", key === id);
+    this.tabButtons.get(id)?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
     replace(this.viewHost, this.views[id].el);
     this.views[id].update();
     this.audio.sfx("select", 0.3);
@@ -235,12 +244,29 @@ export class App {
       this.dirtyFlag = false;
       this.refresh();
     }
+    if (this.nextBackup === 0) {
+      this.nextBackup = now + 60_000;
+      this.nextReminder = now + 120_000;
+    }
+    if (now > this.nextBackup) {
+      this.nextBackup = now + 60_000;
+      backupNow(this.profile, s, "auto");
+    }
+    if (now > this.nextReminder) {
+      this.nextReminder = now + 600_000;
+      this.remind();
+    }
     if (now - this.lastSave > SAVE_EVERY_MS) {
       this.lastSave = now;
       this.session.save();
     }
     requestAnimationFrame(this.frame);
   };
+
+  /** Remind the player to take a copy of the save out of the browser, if it has been a while. */
+  remind(): boolean {
+    return remindToExport(this);
+  }
 
   /** Bring the next passing creature forward (the end-to-end tests use it). */
   roamSoon(): void {
@@ -413,6 +439,11 @@ export class App {
           this.dirty();
           break;
         }
+        case "autoRetired":
+          toast(tn(e.paid, "The Veteran retired for you: +{n} Mark.", "The Veteran retired for you: +{n} Marks."), { kind: "big" });
+          this.sound("levelup", 0.8);
+          this.dirty(true);
+          break;
         case "unlocked":
           toast(t("New place: {name}", { name: placeTitle(place(e.place)) }), { kind: "good" });
           this.sound("open", 0.5);

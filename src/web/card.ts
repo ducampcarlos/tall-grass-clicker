@@ -52,7 +52,7 @@ function panel(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h
   ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
 }
 
-export async function drawCard(s: State, canvas: HTMLCanvasElement = document.createElement("canvas")): Promise<HTMLCanvasElement> {
+export async function drawCard(s: State, name = "", canvas: HTMLCanvasElement = document.createElement("canvas")): Promise<HTMLCanvasElement> {
   canvas.width = W;
   canvas.height = H;
   const ctx = canvas.getContext("2d")!;
@@ -85,7 +85,7 @@ export async function drawCard(s: State, canvas: HTMLCanvasElement = document.cr
   ctx.fillStyle = "#ffcb3d";
   ctx.font = font(26);
   ctx.textAlign = "left";
-  ctx.fillText(t("Trainer card"), 28, 37);
+  ctx.fillText(name ? `${name} · ${t("Trainer card")}` : t("Trainer card"), 28, 37);
   ctx.textAlign = "right";
   ctx.fillStyle = "#9fb0c9";
   ctx.font = font(18);
@@ -169,7 +169,7 @@ export async function drawCard(s: State, canvas: HTMLCanvasElement = document.cr
 }
 
 /** The card as a PNG file to hand to the player. */
-export async function cardBlob(s: State): Promise<Blob> {
-  const canvas = await drawCard(s);
+export async function cardBlob(s: State, name = ""): Promise<Blob> {
+  const canvas = await drawCard(s, name);
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("The card could not be drawn."))), "image/png"));
 }

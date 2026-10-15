@@ -6,10 +6,10 @@
 
 import { MAX_LEVEL, UPGRADES } from "./rules.js";
 import {
-  type GameEvent, type State, bestParty, buyBall, buyUpgrade, ballPrice, eggSlots, incubate, itemCount, partySlots, setParty, upgradePrice, useCandy, useItem,
+  type GameEvent, type State, bestParty, buyBall, buyUpgrade, ballPrice, canRetire, eggSlots, incubate, itemCount, marksFor, partySlots, retire, setParty, upgradePrice, useCandy, useItem,
 } from "./game.js";
 
-export type HelperId = "stocker" | "shopkeeper" | "hatchery" | "coach" | "sorter" | "net" | "belt";
+export type HelperId = "stocker" | "shopkeeper" | "hatchery" | "coach" | "sorter" | "net" | "belt" | "veteran";
 
 export interface HelperDef {
   id: HelperId;
@@ -19,6 +19,8 @@ export interface HelperDef {
   goal: string;
   need: number;
   read: (s: State) => number;
+  /** Starts switched off when it opens (for the one that does something big). */
+  startsOff?: boolean;
 }
 
 export const HELPERS: readonly HelperDef[] = [
@@ -28,6 +30,7 @@ export const HELPERS: readonly HelperDef[] = [
   { id: "shopkeeper", name: "Shopkeeper", text: "Buys the cheapest upgrade for you, when it costs less than half your coins.", goal: "Defeat {n} creatures", need: 3000, read: (s) => s.stats.kills },
   { id: "sorter", name: "Candy Sorter", text: "Feeds your party the candy it has, ten at a time.", goal: "Catch {n} different creatures", need: 150, read: (s) => s.stats.caught },
   { id: "net", name: "Collector's Net", text: "Gathers the passing creatures for you.", goal: "Tap {n} passing creatures", need: 10, read: (s) => s.stats.roamers },
+  { id: "veteran", name: "Veteran", text: "Retires for you when you keep failing at the same boss and retiring pays at least a fifth more Marks than you hold. Off until you switch it on.", goal: "Retire {n} times", need: 3, read: (s) => s.rank, startsOff: true },
   { id: "belt", name: "Booster Belt", text: "Uses another booster of the same kind when one runs out.", goal: "Play {n} mini-games", need: 8, read: (s) => s.stats.games },
 ];
 
@@ -49,6 +52,7 @@ export function setHelper(s: State, id: HelperId, on: boolean): boolean {
 }
 
 const clocks = new WeakMap<State, Record<string, number>>();
+const fails = new WeakMap<State, { place: number; count: number }>();
 
 /** Run the helpers for `dt` seconds of play: open the ones that have been earned and do their chores. `events` are the tick's, to see which boosters ran out. */
 export function tickHelpers(s: State, dt: number, events: GameEvent[]): GameEvent[] {
@@ -64,12 +68,27 @@ export function tickHelpers(s: State, dt: number, events: GameEvent[]): GameEven
   if (due("unlock", 1)) {
     for (const h of HELPERS) {
       if (s.settings.helpers[h.id] === undefined && h.read(s) >= h.need) {
-        s.settings.helpers[h.id] = true;
+        s.settings.helpers[h.id] = !h.startsOff;
         out.push({ t: "helperUnlocked", id: h.id });
       }
     }
   }
 
+  // the veteran: three failures in a row at one boss, and retiring worth it
+  for (const e of events) {
+    if (e.t !== "bossFailed") continue;
+    const f = fails.get(s) ?? { place: -1, count: 0 };
+    f.count = f.place === e.place ? f.count + 1 : 1;
+    f.place = e.place;
+    fails.set(s, f);
+    if (helperOn(s, "veteran") && f.count >= 3 && canRetire(s) && marksFor(s) >= Math.max(1, Math.ceil(s.marksTotal * 0.2))) {
+      const paid = marksFor(s);
+      if (retire(s).ok) {
+        out.push({ t: "autoRetired", paid });
+        fails.delete(s);
+      }
+    }
+  }
   if (helperOn(s, "belt")) {
     for (const e of events) {
       if (e.t === "buffEnded" && itemCount(s, e.id, e.tier) > 0) useItem(s, e.id, e.tier);

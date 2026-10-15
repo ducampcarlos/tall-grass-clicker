@@ -8,6 +8,7 @@ import { h, setClass, setText } from "../dom.js";
 import { TYPE_COLORS, placeTitle, typeLabel } from "../labels.js";
 import type { BallId } from "../../engine/rules.js";
 import { BALL_ICON, itemImg } from "../icons.js";
+import { getScene } from "../appearance.js";
 import { scaleSprite, setSprite, spriteImg } from "../sprites.js";
 
 const BIOMES: Record<string, string> = {
@@ -18,7 +19,8 @@ const BIOMES: Record<string, string> = {
 /** Dress an element (the battle card, the page) as the place: its biome picture, tinted by the region's light. */
 export function setBiome(el: HTMLElement, p: Place): void {
   el.className = el.className.replace(/\b(biome|region)-\w+\s*/g, "").trim();
-  el.classList.add(`biome-${p.tower ? "tower" : (BIOMES[p.name] ?? "meadow")}`, `region-${p.tower ? 5 : p.region}`);
+  const chosen = getScene();
+  el.classList.add(`biome-${chosen !== "auto" ? chosen : p.tower ? "tower" : (BIOMES[p.name] ?? "meadow")}`, `region-${p.tower ? 5 : p.region}`);
 }
 
 /** The fight: the creature in front of you, its health, and where you are. Click anywhere on it. */
@@ -124,7 +126,8 @@ export class BattleView {
       done();
       onTap();
     });
-    el.addEventListener("animationend", done);
+    el.addEventListener("animationend", (e) => e.target === el && e.animationName === "cross" && done());
+    window.setTimeout(done, 12_000); // with motion reduced there is no animation to end
     this.roamer = el;
     this.el.append(el);
     return true;
@@ -154,7 +157,8 @@ export class BattleView {
     this.img.style.width = "";
     this.img.style.height = "";
     setSprite(this.img, sp.id, showShiny ? "shiny" : "normal");
-    scaleSprite(this.img, 3, 260, 190);
+    const big = document.documentElement.classList.contains("big-creatures");
+    scaleSprite(this.img, big ? 4 : 3, big ? 320 : 260, big ? 230 : 190);
     setClass(this.img, "shiny", showShiny);
     this.sparkle.style.display = showShiny ? "" : "none";
     setText(this.name, `${sp.name}${w.boss ? " ★" : ""}  ${t("Lv {n}", { n: w.level })}`);

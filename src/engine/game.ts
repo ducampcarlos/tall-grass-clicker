@@ -140,6 +140,7 @@ export type GameEvent =
   | { t: "achievement"; id: string }
   | { t: "buffEnded"; id: BuffId; tier: Tier }
   | { t: "helperUnlocked"; id: string }
+  | { t: "autoRetired"; paid: number }
   | { t: "roam"; kind: RoamKind; amount: number; sp: number; shiny: boolean; tier?: number; buff?: BuffId };
 
 export type RoamKind = "coins" | "balls" | "egg" | "candy" | "item";

@@ -1,5 +1,5 @@
 {
- "version": "26efdf797f",
+ "version": "0d63ec813e",
  "files": [
   "./",
   "assets/badges/1.png",
@@ -53,6 +53,7 @@
   "assets/items/berry-pouch.png",
   "assets/items/bicycle.png",
   "assets/items/big-mushroom.png",
+  "assets/items/big-nugget.png",
   "assets/items/bottle-cap.png",
   "assets/items/bright-powder.png",
   "assets/items/charcoal.png",
@@ -69,6 +70,7 @@
   "assets/items/focus-band.png",
   "assets/items/gold-bottle-cap.png",
   "assets/items/great-ball.png",
+  "assets/items/hard-stone.png",
   "assets/items/heat-rock.png",
   "assets/items/honey.png",
   "assets/items/hp-up.png",

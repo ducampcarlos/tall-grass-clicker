@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { HELPERS, HELPER_IDS, helperOn, helperProgress, helperUnlocked, setHelper, tickHelpers } from "../src/engine/helpers.js";
-import { eggSlots, giveItem, partySlots, tick, upgradeLevel, useItem, type GameEvent } from "../src/engine/game.js";
+import { eggSlots, giveItem, marksFor, partySlots, tick, upgradeLevel, useItem, type GameEvent } from "../src/engine/game.js";
 import { tierDef } from "../src/engine/items.js";
 import { parseState, serializeState } from "../src/engine/save.js";
 import { fresh, own } from "./helpers.js";
@@ -132,6 +132,59 @@ describe("the helpers", () => {
     expect(s.buffs).toHaveLength(1);
     expect(s.buffs[0]!.tier).toBe(1);
     expect(s.items.coins1).toBeUndefined();
+  });
+
+  it("the veteran opens at the third retirement, and starts switched off", () => {
+    const s = fresh(12);
+    s.rank = 2;
+    run(s, 2);
+    expect(helperUnlocked(s, "veteran")).toBe(false);
+    s.rank = 3;
+    expect(run(s, 2)).toEqual([{ t: "helperUnlocked", id: "veteran" }]);
+    expect(helperUnlocked(s, "veteran")).toBe(true);
+    expect(helperOn(s, "veteran")).toBe(false);
+  });
+
+  it("the veteran retires you after three failures at the same boss, only when it is switched on and worth it", () => {
+    const fail = (place: number): GameEvent => ({ t: "bossFailed", place });
+    const ready = (seed: number) => {
+      const s = fresh(seed);
+      s.rank = 3;
+      s.stats.kills = 0;
+      run(s, 2);
+      s.maxPlace = 40;
+      s.bestPlace = 40;
+      s.place = 36;
+      return s;
+    };
+    // switched off: nothing happens
+    const off = ready(13);
+    expect(tickHelpers(off, 0.25, [fail(35), fail(35), fail(35)])).toEqual([]);
+    expect(off.rank).toBe(3);
+    // switched on: the third failure at the same place retires, and pays
+    const on = ready(14);
+    setHelper(on, "veteran", true);
+    const gain = marksFor(on);
+    expect(gain).toBeGreaterThan(5);
+    expect(tickHelpers(on, 0.25, [fail(35), fail(35)])).toEqual([]);
+    expect(on.rank).toBe(3);
+    expect(tickHelpers(on, 0.25, [fail(35)])).toEqual([{ t: "autoRetired", paid: gain }]);
+    expect(on.rank).toBe(4);
+    expect(on.marks).toBe(gain);
+    expect(on.place).toBe(0);
+    // failures at different places do not add up
+    const mixed = ready(15);
+    setHelper(mixed, "veteran", true);
+    expect(tickHelpers(mixed, 0.25, [fail(35), fail(30), fail(35), fail(30)])).toEqual([]);
+    expect(mixed.rank).toBe(3);
+    // not worth it: retiring would pay less than a fifth of what is already held
+    const poor = ready(16);
+    setHelper(poor, "veteran", true);
+    poor.marksTotal = marksFor(poor) * 20;
+    poor.marks = poor.marksTotal;
+    expect(marksFor(poor)).toBe(0);
+    expect(tickHelpers(poor, 0.25, [fail(35), fail(35), fail(35)])).toEqual([]);
+    expect(poor.rank).toBe(3);
   });
 
   it("are kept in a save", () => {

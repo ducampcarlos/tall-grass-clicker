@@ -354,6 +354,123 @@ await test("a helper opens once its goal is met, and can be switched off", async
   assert.ok(await page.locator(".row.helper.locked").count() >= 1, "the others are still closed");
 });
 
+await test("the save can be copied as a code and pasted back, with a safety copy kept", async () => {
+  const context = await browser.newContext({ viewport: { width: 1100, height: 800 }, permissions: ["clipboard-read", "clipboard-write"] });
+  await context.addInitScript(([s]) => { if (!sessionStorage.getItem("seeded")) { sessionStorage.setItem("seeded", "1"); const state = JSON.parse(s); state.savedAt = Date.now(); state.coins = 4242; localStorage.setItem("tall-grass-clicker.game.v1", JSON.stringify(state)); } }, [seed]);
+  const page = await context.newPage();
+  page.on("pageerror", (e) => problems.push(`pageerror: ${e.message}`));
+  await page.goto(base + "?debug");
+  await page.waitForSelector(".tab");
+  await page.click('button[aria-label="Settings"]');
+  await page.locator(".dialog .btn", { hasText: "Copy code" }).click();
+  await page.waitForFunction(() => /Save code copied/.test(document.querySelector("#toasts")?.textContent ?? ""));
+  const code = await page.evaluate(() => navigator.clipboard.readText());
+  assert.match(code, /^TGC1\.[A-Za-z0-9_-]+$/);
+  // change the game, then bring the saved one back from the code
+  await page.evaluate(() => { window.__game.state.coins = 1; });
+  await page.locator(".dialog .btn", { hasText: "Paste code" }).click();
+  await page.fill("textarea.code", code);
+  await page.locator(".dialog .btn.primary", { hasText: "Continue" }).click();
+  await page.locator(".dialog .btn.danger", { hasText: "Replace" }).click();
+  await page.waitForSelector(".tab");
+  await page.waitForFunction(() => window.__game.state.coins > 4000 && window.__game.state.coins < 1e6);
+  // the copy made before replacing is there to restore
+  await page.click('button[aria-label="Settings"]');
+  await page.locator(".dialog .btn", { hasText: "Safety copies" }).click();
+  assert.ok((await page.locator(".backup").count()) >= 1, "a safety copy was kept");
+  assert.match(await page.locator(".backup").first().textContent(), /before an import/);
+  await context.close();
+});
+
+await test("a damaged code is refused with a message and changes nothing", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  const before = await game(page);
+  await page.click('button[aria-label="Settings"]');
+  await page.locator(".dialog .btn", { hasText: "Paste code" }).click();
+  await page.fill("textarea.code", "TGC1.this-is-not-a-save");
+  await page.locator(".dialog .btn.primary", { hasText: "Continue" }).click();
+  await page.waitForFunction(() => /not a Tall Grass Clicker save|damaged/.test(document.querySelector("#toasts")?.textContent ?? ""));
+  assert.deepEqual((await game(page)).party, before.party);
+});
+
+await test("a save file dropped on the page is offered for import", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  const file = await page.evaluate(async () => {
+    const s = window.__game.state;
+    s.coins = 777;
+    return JSON.stringify({ game: "tall-grass-clicker", format: 1, exported: "2026-01-01T00:00:00.000Z", profile: {}, state: s });
+  });
+  await page.evaluate((text) => {
+    const data = new DataTransfer();
+    data.items.add(new File([text], "mine.json", { type: "application/json" }));
+    window.dispatchEvent(new DragEvent("drop", { dataTransfer: data, bubbles: true, cancelable: true }));
+  }, file);
+  await page.waitForSelector(".dialog .btn.danger");
+  assert.match(await page.textContent(".dialog"), /2026-01-01/);
+  await page.locator(".dialog .btn", { hasText: "Keep mine" }).click();
+  assert.equal(await page.locator(".dialog").count(), 0);
+});
+
+await test("the game reminds you to keep a copy outside the browser, once in a while", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { window.__game.state.stats.playSeconds = 7200; });
+  assert.equal(await page.evaluate(() => window.__game.app.remind()), true, "it has been two hours and nothing was ever exported");
+  await page.waitForFunction(() => /took a copy of your game/.test(document.querySelector("#toasts")?.textContent ?? ""));
+  assert.equal(await page.evaluate(() => window.__game.app.remind()), false, "and it does not nag again at once");
+  // exporting counts
+  await page.click('button[aria-label="Settings"]');
+  const [download] = await Promise.all([page.waitForEvent("download"), page.locator(".dialog .btn.primary", { hasText: "Export" }).click()]);
+  assert.match(download.suggestedFilename(), /\.json$/);
+  const last = await page.evaluate(() => JSON.parse(localStorage.getItem("tall-grass-clicker.profile.v1")).lastExport);
+  assert.ok(last > 0);
+});
+
+await test("Settings → Look: colours, picture behind the battle, size and numbers, kept after a reload", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.click('button[aria-label="Settings"]');
+  await page.selectOption('select[aria-label="Colours"]', "ocean");
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "ocean");
+  await page.selectOption('select[aria-label="Size of everything"]', "1.15");
+  assert.equal(await page.evaluate(() => document.documentElement.style.getPropertyValue("--ui-zoom")), "1.15");
+  await page.selectOption('select[aria-label="Big numbers"]', "full");
+  await page.waitForFunction(() => /,/.test(document.querySelector(".top .stat b")?.textContent ?? ""));
+  await page.selectOption('select[aria-label="Picture behind the battle"]', "cave");
+  await page.waitForSelector(".battle.biome-cave");
+  assert.ok(await page.evaluate(() => document.body.classList.contains("biome-cave")), "the page follows too");
+  // even in another place, the chosen picture stays
+  await page.evaluate(() => { const s = window.__game.state; s.settings.autoAdvance = false; s.maxPlace = Math.max(s.maxPlace, 12); s.bestPlace = Math.max(s.bestPlace, 12); s.place = 8; s.wild = null; });
+  await page.waitForTimeout(500);
+  assert.ok(await page.locator(".battle.biome-cave").count());
+  await page.fill('input[aria-label="Trainer name"]', "Ash");
+  await page.locator('input[aria-label="Trainer name"]').blur();
+  await page.reload();
+  await page.waitForSelector(".tab");
+  assert.equal(await page.evaluate(() => document.documentElement.dataset.theme), "ocean");
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("tall-grass-clicker.profile.v1")).name), "Ash");
+  assert.ok(await page.locator(".battle.biome-cave").count());
+  // and back to following the place
+  await page.click('button[aria-label="Settings"]');
+  await page.selectOption('select[aria-label="Picture behind the battle"]', "auto");
+  await page.waitForFunction(() => !document.querySelector(".battle.biome-cave"));
+});
+
+await test("reduced motion keeps a passing creature on the screen long enough to tap", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.click('button[aria-label="Settings"]');
+  await page.locator(".set", { hasText: "Reduce motion" }).locator("input").check();
+  await page.keyboard.press("Escape");
+  assert.ok(await page.evaluate(() => document.documentElement.classList.contains("reduce-motion")));
+  await page.evaluate(() => window.__game.app.roamSoon());
+  await page.waitForSelector(".battle .roamer");
+  await page.waitForTimeout(1500);
+  assert.equal(await page.locator(".battle .roamer").count(), 1, "it is still there");
+});
+
 await test("each kind of place has its own background, on the battle and on the page", async () => {
   const page = await newPage({ seed });
   await page.waitForSelector(".tab");

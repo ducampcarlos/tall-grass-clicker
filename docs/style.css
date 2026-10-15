@@ -422,3 +422,20 @@ body { background: transparent; }
 .hole .mole .mole-pic { image-rendering: pixelated; }
 .hole .mole.whacked { filter: brightness(1.8); }
 .hole .mole.boom { filter: hue-rotate(180deg) brightness(1.6); }
+
+/* ---- what each player can choose: size, colours, page background, motion ---------------------- */
+#app { zoom: var(--ui-zoom, 1); }
+html[data-page-background="bright"] body::before { filter: var(--tone, none) brightness(0.62) saturate(1); }
+html[data-page-background="off"] body::before { display: none; }
+html.reduce-motion *, html.reduce-motion *::before, html.reduce-motion *::after { animation-duration: 0.001s !important; animation-iteration-count: 1 !important; transition-duration: 0.001s !important; scroll-behavior: auto !important; }
+html.reduce-motion .roamer { animation: none !important; left: calc(50% - 50px); }
+html.reduce-motion .battle .wild.hit { animation: none !important; }
+
+html[data-theme="red"] { --bg: #1d1214; --bg2: #2b1a1d; --panel: #3c2226; --panel2: #50303a; --line: #0f0709; --edge: #a8505c; --muted: #cfa9ae; }
+html[data-theme="forest"] { --bg: #0f1c15; --bg2: #172a1f; --panel: #1f3a2b; --panel2: #2a4d39; --line: #08120c; --edge: #4f9a6a; --muted: #a3c9b0; }
+html[data-theme="twilight"] { --bg: #17122a; --bg2: #211a3a; --panel: #2e2552; --panel2: #3d3270; --line: #0c0919; --edge: #7a68c8; --muted: #b3a9dc; }
+html[data-theme="ocean"] { --bg: #0c1c24; --bg2: #12303c; --panel: #184350; --panel2: #1f5666; --line: #07121a; --edge: #4aa3b8; --muted: #9fcad6; }
+.set input[type="text"], textarea.code { background: #0b111b; color: var(--text); border: 3px solid var(--line); border-radius: 6px; padding: 3px 8px; font: inherit; }
+.set input[type="text"] { width: 150px; }
+textarea.code { width: 100%; box-sizing: border-box; font-size: 13px; word-break: break-all; resize: vertical; }
+.backup .d { font-size: 13px; }

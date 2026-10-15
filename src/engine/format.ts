@@ -2,11 +2,22 @@
 
 const SUFFIXES = ["", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc"];
 
+/** How big numbers are written: shrunk with letters (1.23M), in full (1,234,567) or in scientific form (1.23e6). */
+export type NumberStyle = "short" | "full" | "scientific";
+export const NUMBER_STYLES: readonly NumberStyle[] = ["short", "full", "scientific"];
+let style: NumberStyle = "short";
+export const setNumberStyle = (next: NumberStyle): void => {
+  style = next;
+};
+export const getNumberStyle = (): NumberStyle => style;
+
 export function formatNumber(n: number): string {
   if (!Number.isFinite(n)) return n > 0 ? "∞" : "0";
   const sign = n < 0 ? "-" : "";
   const v = Math.abs(n);
   if (v < 1000) return sign + (v < 10 && v % 1 !== 0 ? v.toFixed(1) : String(Math.floor(v)));
+  if (style === "full") return sign + (v >= 1e21 ? v.toExponential(2).replace("e+", "e") : Math.floor(v).toLocaleString("en-US"));
+  if (style === "scientific") return sign + v.toExponential(2).replace("e+", "e");
   const tier = Math.floor(Math.log10(v) / 3);
   if (tier >= SUFFIXES.length) return `${sign}${v.toExponential(2).replace("e+", "e")}`;
   const scaled = v / 1000 ** tier;

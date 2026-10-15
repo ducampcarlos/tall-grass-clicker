@@ -5,7 +5,9 @@
  */
 
 import { type Lang, isLang } from "../i18n/index.js";
+import { NUMBER_STYLES, type NumberStyle } from "../engine/format.js";
 import { type State, newGame } from "../engine/game.js";
+import { type PageBackground, type Scene, type Theme, type UiScale, isPageBackground, isScene, isTheme, isUiScale } from "./appearance.js";
 import { parseState, serializeState } from "../engine/save.js";
 import { store } from "./storage.js";
 
@@ -28,9 +30,22 @@ export interface Profile {
   buyAmount: number;
   /** Creatures that cross the battle now and then, to be tapped for a gift. */
   roamers: boolean;
+  /** When the player last took a copy of the save out of the game (ms since 1970; 0 never). */
+  lastExport: number;
+  /** When the game last reminded the player to do so. */
+  lastReminder: number;
+  /** What the player picked in Settings → Look. */
+  name: string;
+  theme: Theme;
+  pageBackground: PageBackground;
+  scene: Scene;
+  uiScale: UiScale;
+  numberFormat: NumberStyle;
+  reduceMotion: boolean;
+  bigCreatures: boolean;
 }
 
-const emptyProfile = (): Profile => ({ lang: null, muted: false, musicVolume: 0.4, sfxVolume: 0.8, showShiny: true, seenIntro: false, numbers: true, buyAmount: 1, roamers: true });
+const emptyProfile = (): Profile => ({ lang: null, muted: false, musicVolume: 0.4, sfxVolume: 0.8, showShiny: true, seenIntro: false, numbers: true, buyAmount: 1, roamers: true, lastExport: 0, lastReminder: 0, name: "", theme: "night", pageBackground: "dim", scene: "auto", uiScale: 1, numberFormat: "short", reduceMotion: false, bigCreatures: false });
 
 export function parseProfile(text: string | null): Profile {
   const base = emptyProfile();
@@ -46,6 +61,18 @@ export function parseProfile(text: string | null): Profile {
     if (typeof raw.seenIntro === "boolean") base.seenIntro = raw.seenIntro;
     if (typeof raw.numbers === "boolean") base.numbers = raw.numbers;
     if (typeof raw.roamers === "boolean") base.roamers = raw.roamers;
+    if (typeof raw.name === "string") base.name = raw.name.replace(/[\u0000-\u001f<>]/g, "").trim().slice(0, 16);
+    if (isTheme(raw.theme)) base.theme = raw.theme;
+    if (isPageBackground(raw.pageBackground)) base.pageBackground = raw.pageBackground;
+    if (isScene(raw.scene)) base.scene = raw.scene;
+    if (isUiScale(raw.uiScale)) base.uiScale = raw.uiScale;
+    if (typeof raw.numberFormat === "string" && (NUMBER_STYLES as readonly string[]).includes(raw.numberFormat)) base.numberFormat = raw.numberFormat as NumberStyle;
+    if (typeof raw.reduceMotion === "boolean") base.reduceMotion = raw.reduceMotion;
+    if (typeof raw.bigCreatures === "boolean") base.bigCreatures = raw.bigCreatures;
+    for (const k of ["lastExport", "lastReminder"] as const) {
+      const v = raw[k];
+      if (typeof v === "number" && Number.isFinite(v) && v >= 0 && v < 8.64e15) base[k] = v;
+    }
     if (typeof raw.buyAmount === "number" && [0, 1, 10, 100].includes(raw.buyAmount)) base.buyAmount = raw.buyAmount;
     return base;
   } catch {

@@ -78,7 +78,7 @@ export class TrainerView {
 
   /** The trainer card: a picture to look at, save and share. */
   private async showCard(): Promise<void> {
-    const canvas = await drawCard(this.app.state);
+    const canvas = await drawCard(this.app.state, this.app.profile.name);
     canvas.className = "card-picture";
     canvas.setAttribute("role", "img");
     canvas.setAttribute("aria-label", t("Trainer card"));
