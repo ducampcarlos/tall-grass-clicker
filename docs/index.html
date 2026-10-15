@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16202e">
+<meta name="description" content="Tall Grass Clicker: an unofficial fan-made clicker. Click to battle, catch and evolve all 649 creatures of the first five generations, hunt shinies, retire and come back stronger. Free, open source, no ads.">
+<title>Tall Grass Clicker</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="assets/img/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta property="og:title" content="Tall Grass Clicker">
+<meta property="og:description" content="An unofficial fan-made clicker: catch, evolve and hunt shinies across five regions. Free and open source.">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://ducampcarlos.github.io/tall-grass-clicker/assets/img/preview.png">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app"><div id="boot">Loading...</div></div>
+<div id="toasts" aria-live="polite"></div>
+<div id="modal"></div>
+<noscript>Tall Grass Clicker needs JavaScript to run.</noscript>
+<script src="game.js"></script>
+<script>
+  // Offline support. Not on file:// or in the local dev server (localhost), where a stale cache would only get in the way.
+  if ("serviceWorker" in navigator) {
+    if (location.protocol.startsWith("http") && location.hostname !== "localhost") addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+    else navigator.serviceWorker.getRegistrations().then((all) => all.forEach((r) => r.unregister())).catch(() => {});
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "name": "Tall Grass Clicker",
+  "short_name": "Tall Grass",
+  "description": "An unofficial fan-made clicker: catch, evolve and hunt shinies across five regions.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#16202e",
+  "theme_color": "#16202e",
+  "icons": [
+    { "src": "assets/img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}
