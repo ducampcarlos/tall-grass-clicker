@@ -9,7 +9,9 @@ import { place } from "../../engine/regions.js";
 import type { App } from "../app.js";
 import { h, setClass, setText } from "../dom.js";
 import { placeTitle } from "../labels.js";
-import { confirmDialog } from "../ui.js";
+import { drawCard } from "../card.js";
+import { downloadBlob } from "../transfer.js";
+import { confirmDialog, dialog } from "../ui.js";
 
 /** The trainer: what you have done, retiring, the perks marks buy, and the achievements. */
 export class TrainerView {
@@ -53,9 +55,22 @@ export class TrainerView {
       h("div", { class: "section-title" }, t("Your trainer")),
       this.mult,
       this.stats,
+      h("div", { class: "actions" }, h("button", { class: "btn small primary", on: { click: () => void this.showCard() } }, t("Trainer card"))),
       this.achTitle,
       this.achievements,
     );
+  }
+
+  /** The trainer card: a picture to look at, save and share. */
+  private async showCard(): Promise<void> {
+    const canvas = await drawCard(this.app.state);
+    canvas.className = "card-picture";
+    canvas.setAttribute("role", "img");
+    canvas.setAttribute("aria-label", t("Trainer card"));
+    dialog(t("Trainer card"), [canvas, h("p", { class: "muted" }, t("Save it, and show what your party looks like."))], [
+      { label: t("Save image"), kind: "primary", keepOpen: true, onClick: () => canvas.toBlob((blob) => blob && downloadBlob(blob, "tall-grass-clicker-trainer-card.png"), "image/png") },
+      { label: t("Close") },
+    ]);
   }
 
   private confirmRetire(): void {

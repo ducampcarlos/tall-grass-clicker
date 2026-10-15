@@ -1,5 +1,5 @@
 import { t } from "../../i18n/index.js";
-import { MAX_SPECIES, SPECIES, evolutionsOf, isSpecial, species } from "../../engine/dex.js";
+import { MAX_SPECIES, SPECIES, evolutionsOf, isSpecial, rootOf, species } from "../../engine/dex.js";
 import { type State, attackOfEntry, evolutionTargets, evolve, partySlots, setParty, useCandy } from "../../engine/game.js";
 import { PLACES, REGIONS, REGION_COUNT, ROUTE_COUNT, place, poolOf } from "../../engine/regions.js";
 import { MAX_LEVEL, xpNeed } from "../../engine/rules.js";
@@ -173,6 +173,10 @@ export class DexView {
         ),
       );
     }
+    if (known) {
+      const line = this.family(id);
+      if (line) body.append(line);
+    }
     if (owned) {
       const needed = xpNeed(e!.level);
       body.append(h("div", { class: "bar xp" }, h("i", { style: { width: e!.level >= MAX_LEVEL ? "100%" : `${Math.min(100, (e!.xp / needed) * 100)}%` } }), h("span", {}, e!.level >= MAX_LEVEL ? t("MAX") : `${formatNumber(e!.xp)} / ${formatNumber(needed)}`)));
@@ -197,6 +201,41 @@ export class DexView {
     }
     body.append(h("div", { class: "where" }, known ? whereToFind(id) : t("You have not met this creature yet.")));
     this.detail.replaceChildren(h("div", { class: "detail" }, pic, body));
+  }
+
+  /** The whole family of a creature in stages, each a small picture (a silhouette until it has been met). */
+  private family(id: number): HTMLElement | null {
+    const s = this.app.state;
+    const root = rootOf(id);
+    const stages: number[][] = [[root]];
+    for (;;) {
+      const next = stages[stages.length - 1]!.flatMap((x) => [...evolutionsOf(x)]);
+      if (next.length === 0) break;
+      stages.push(next);
+    }
+    if (stages.length === 1) return null;
+    const columns: Array<Node | string> = [];
+    stages.forEach((members, i) => {
+      if (i > 0) columns.push(h("span", { class: "arrow" }, "▸"));
+      columns.push(
+        h(
+          "div",
+          { class: "stage-col" },
+          ...members.map((m) => {
+            const seen = s.dex[m]?.seen === true;
+            const sp = species(m);
+            const pic = spriteImg(m, "icon", seen ? "" : "dark", seen ? sp.name : "");
+            return h(
+              "button",
+              { class: `fam ${m === id ? "current" : ""}`, type: "button", title: seen ? sp.name : "???", on: { click: () => this.select(m) } },
+              pic,
+              h("span", {}, sp.evoLevel > 0 ? t("Lv {n}", { n: sp.evoLevel }) : ""),
+            );
+          }),
+        ),
+      );
+    });
+    return h("div", { class: "family", "aria-label": t("Evolution line") }, ...columns);
   }
 
   private add(id: number): void {

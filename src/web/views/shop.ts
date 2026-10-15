@@ -1,6 +1,6 @@
 import { t } from "../../i18n/index.js";
 import { formatNumber } from "../../engine/format.js";
-import { type State, affordableBalls, ballPrice, buyBall, buyUpgrade, partySlots, eggSlots, upgradeLevel, upgradePrice } from "../../engine/game.js";
+import { type State, affordableBalls, ballPrice, buyBall, buyUpgrade, partySlots, eggSlots, upgradeLevel, upgradePlan } from "../../engine/game.js";
 import { BALLS, type BallId, UPGRADES } from "../../engine/rules.js";
 import type { App } from "../app.js";
 import { h, setClass, setText } from "../dom.js";
@@ -24,9 +24,16 @@ export class ShopView {
   private readonly rows: Row[] = [];
   private readonly ballRows: Array<{ ball: Exclude<BallId, "master">; own: HTMLElement; price: HTMLElement; one: HTMLButtonElement; ten: HTMLButtonElement; max: HTMLButtonElement }> = [];
   private readonly master = h("span", {});
+  private readonly amountButtons: HTMLButtonElement[] = [];
   private readonly choose = h("select", { on: { change: () => this.pick() } }) as HTMLSelectElement;
 
   constructor(private readonly app: App) {
+    const amounts = h("div", { class: "segment", role: "group", "aria-label": t("Levels per purchase") });
+    for (const [value, label] of [[1, "x1"], [10, "x10"], [100, "x100"], [0, t("Max")]] as const) {
+      const b = h("button", { class: "btn small", "data-amount": String(value), on: { click: () => this.setAmount(value) } }, label);
+      this.amountButtons.push(b);
+      amounts.append(b);
+    }
     const upgrades = h("div", { class: "rows" });
     for (const id of ["slots", "incubator", ...UPGRADES.map((u) => u.id)]) upgrades.append(this.row(id));
     const balls = h("div", { class: "rows" });
@@ -34,7 +41,7 @@ export class ShopView {
     this.el = h(
       "div",
       {},
-      h("div", { class: "section-title" }, t("Upgrades")),
+      h("div", { class: "section-title with-tools" }, h("span", {}, t("Upgrades")), amounts),
       upgrades,
       h("div", { class: "section-title" }, t("Balls")),
       balls,
@@ -72,8 +79,19 @@ export class ShopView {
     return h("div", { class: "row" }, h("div", { class: "with-icon" }, itemImg(UPGRADE_ICON[id] ?? "poke-ball"), h("div", {}, h("div", { class: "t" }, name, " ", lvl), desc)), buy);
   }
 
+  private setAmount(value: number): void {
+    this.app.profile.buyAmount = value;
+    this.app.saveProfile();
+    this.app.audio.sfx("toggle", 0.5);
+    this.update();
+  }
+
+  private amount(): number | "max" {
+    return this.app.profile.buyAmount === 0 ? "max" : this.app.profile.buyAmount;
+  }
+
   private buy(id: string): void {
-    const r = buyUpgrade(this.app.state, id);
+    const r = buyUpgrade(this.app.state, id, this.amount());
     if (this.app.act(r)) this.app.audio.sfx("coin", 0.6);
     this.app.dirty();
   }
@@ -99,12 +117,14 @@ export class ShopView {
     for (const r of this.rows) {
       const level = r.id === "slots" ? partySlots(s) - 1 : r.id === "incubator" ? eggSlots(s) - 1 : upgradeLevel(s, r.id);
       const info = this.upgradeInfo(r.id);
-      const price = upgradePrice(s, r.id);
+      const plan = upgradePlan(s, r.id, this.amount());
+      const price = plan.n === 0 ? null : plan.cost;
       setText(r.lvl, level >= info.max ? t("MAX") : r.id === "slots" ? `${partySlots(s)}/6` : r.id === "incubator" ? `${eggSlots(s)}/4` : t("Lv {n}", { n: level }));
-      r.price.replaceChildren(...(price === null ? [t("Done")] : [coin(), formatNumber(price)]));
+      r.price.replaceChildren(...(price === null ? [t("Done")] : [...(plan.n > 1 ? [`x${plan.n}`] : []), coin(), formatNumber(price)]));
       r.buy.disabled = price === null || s.coins < price;
       setClass(r.buy, "gold", price !== null && s.coins >= price);
     }
+    for (const b of this.amountButtons) setClass(b, "primary", b.dataset.amount === String(this.app.profile.buyAmount));
     for (const r of this.ballRows) {
       const idx = BALLS.indexOf(r.ball);
       setText(r.own, `x${formatNumber(s.balls[idx] ?? 0)}`);

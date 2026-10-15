@@ -1,7 +1,12 @@
 /** Getting a file out of the page and into it, with nothing but the browser's own file dialogs. */
 
 export function downloadText(filename: string, content: string, type = "application/json"): void {
-  const url = URL.createObjectURL(new Blob([content], { type }));
+  downloadBlob(new Blob([content], { type }), filename);
+}
+
+/** Hand a file (a Blob) to the player. */
+export function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
   link.download = filename;

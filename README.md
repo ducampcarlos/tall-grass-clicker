@@ -21,6 +21,9 @@
 - **Types matter.** The full 18-type chart is in: your best attacker against the creature in front is the one that counts, and the numbers on your party show how well each fares.
 - **Collect.** Duplicates give candy (10 candy = a level), creatures level up to 100 and **evolve** at their real levels. **Eggs** (basic, rare, epic, legendary) hatch as you click and win. **Shinies** are 1 in 4096 (a charm brings that toward 1 in 1100) and hit half again as hard. The Pokédex bonus makes everything stronger, and so do the 47 achievements.
 - **Retire.** When you are stuck, start over keeping the Pokédex. You are paid **Marks** only for going further than ever before, and Marks buy permanent perks in a three-branch tree (Training, Fortune, Hunter). Each run goes faster.
+- **Passing creatures.** Now and then one crosses the battle: tap it for coins, balls, an egg or candy (a shiny one pays four times as much). It can be switched off in the settings.
+- **Trainer card.** A picture of your party, Pokédex and badges to save and share (Trainer tab).
+- **Quality of life.** Buy upgrades x1, x10, x100 or as many as you can afford; see each creature's evolution line in the Pokédex; keys 1-5 switch tabs, Space attacks, M mutes, H shows the help; the game tells you when retiring would pay if you are stuck at a boss.
 - **Idle friendly.** Progress continues while the tab is closed (up to 8 h at half speed), and saves every few seconds.
 
 In **English, Spanish and Portuguese**, starting in your browser's language. Your whole save can be exported to a file and imported back (validated field by field) from the settings.

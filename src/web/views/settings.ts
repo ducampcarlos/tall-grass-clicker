@@ -53,6 +53,7 @@ export function openSettings(app: App): void {
     slider(t("Music"), () => profile.musicVolume, (v) => app.setMusicVolume(v)),
     slider(t("Effects"), () => profile.sfxVolume, (v) => app.setSfxVolume(v)),
     toggle(t("Damage numbers"), () => profile.numbers, (v) => ((profile.numbers = v), app.saveProfile())),
+    toggle(t("Passing creatures"), () => profile.roamers, (v) => ((profile.roamers = v), app.saveProfile())),
     toggle(t("Show shiny pictures"), () => profile.showShiny, (v) => ((profile.showShiny = v), app.saveProfile(), app.dirty(true))),
     toggle(t("Go on to the next place by itself"), () => s.settings.autoAdvance, (v) => (s.settings.autoAdvance = v)),
     toggle(t("Evolve by itself when there is only one way"), () => s.settings.autoEvolve, (v) => (s.settings.autoEvolve = v)),

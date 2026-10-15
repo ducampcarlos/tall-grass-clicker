@@ -126,7 +126,10 @@ export type GameEvent =
   | { t: "bossFailed"; place: number }
   | { t: "champion"; region: number }
   | { t: "egg"; tier: EggTier }
-  | { t: "achievement"; id: string };
+  | { t: "achievement"; id: string }
+  | { t: "roam"; kind: RoamKind; amount: number; sp: number; shiny: boolean; tier?: EggTier };
+
+export type RoamKind = "coins" | "balls" | "egg" | "candy";
 
 // ---- a new game ------------------------------------------------------------------------------
 
@@ -672,28 +675,96 @@ export const unit = (s: State): number => killCoins(routeHp(Math.min(s.maxPlace,
 
 const discount = (s: State, id: "shopper" | "bargain"): number => (has(s, id) ? (id === "shopper" ? 0.9 : 0.7) : 1);
 
-export function upgradePrice(s: State, id: string): number | null {
-  if (id === "slots") {
-    const n = upgradeLevel(s, "slots");
-    return n < SLOT_PRICES.length ? Math.ceil(SLOT_PRICES[n]! * discount(s, "shopper")) : null;
-  }
-  if (id === "incubator") {
-    const n = upgradeLevel(s, "incubator");
-    return n < INCUBATOR_PRICES.length ? Math.ceil(INCUBATOR_PRICES[n]! * discount(s, "shopper")) : null;
-  }
+/** What the next level of an upgrade costs when it stands at `level`, or null at the top. */
+function priceAt(s: State, id: string, level: number): number | null {
+  if (id === "slots") return level < SLOT_PRICES.length ? Math.ceil(SLOT_PRICES[level]! * discount(s, "shopper")) : null;
+  if (id === "incubator") return level < INCUBATOR_PRICES.length ? Math.ceil(INCUBATOR_PRICES[level]! * discount(s, "shopper")) : null;
   const def = upgradeDef(id);
   if (!def) return null;
-  const level = upgradeLevel(s, id);
   return level >= def.max ? null : Math.ceil(upgradeCost(def, level) * discount(s, "shopper"));
 }
 
-export function buyUpgrade(s: State, id: string): Result {
-  const price = upgradePrice(s, id);
-  if (price === null) return fail(t("That is as far as it goes."));
-  if (s.coins < price) return fail(t("Not enough coins."));
-  s.coins -= price;
-  s.upgrades[id] = upgradeLevel(s, id) + 1;
+export const upgradePrice = (s: State, id: string): number | null => priceAt(s, id, upgradeLevel(s, id));
+
+/**
+ * How many levels of an upgrade to buy for a wish of `amount` (a number, or "max" for all the coins
+ * allow) and what they cost together. Always at least one level when there is one left, so that the
+ * price of the next one can be shown even when it is out of reach; `n` is 0 only at the top.
+ */
+export function upgradePlan(s: State, id: string, amount: number | "max"): { n: number; cost: number } {
+  let level = upgradeLevel(s, id);
+  let cost = 0;
+  let n = 0;
+  const wanted = amount === "max" ? Infinity : Math.max(1, Math.floor(amount));
+  while (n < wanted) {
+    const price = priceAt(s, id, level);
+    if (price === null) break;
+    if (n > 0 && cost + price > s.coins) break;
+    if (n === 0 && amount === "max" && price > s.coins) return { n: 1, cost: price };
+    cost += price;
+    level++;
+    n++;
+  }
+  return { n, cost };
+}
+
+/** Buy levels of an upgrade: `amount` of them (fewer if that is all there is left), or as many as the coins allow for "max". All or nothing. */
+export function buyUpgrade(s: State, id: string, amount: number | "max" = 1): Result {
+  const plan = upgradePlan(s, id, amount);
+  if (plan.n === 0) return fail(t("That is as far as it goes."));
+  if (s.coins < plan.cost) return fail(t("Not enough coins."));
+  s.coins -= plan.cost;
+  s.upgrades[id] = upgradeLevel(s, id) + plan.n;
   return ok;
+}
+
+// ---- the creature passing through --------------------------------------------------------------
+
+/**
+ * A creature crosses the battle now and then and is tapped for a gift: coins (about 25 kills' worth
+ * here), balls, an egg or candy for the party. A shiny one is worth four times as much. `sp` only
+ * says who it was (and marks it as seen); the gift comes from the game's own random numbers.
+ */
+export function claimRoamer(s: State, sp: number, shiny: boolean, events: GameEvent[]): RoamKind {
+  const rng = new Rng(s.rng);
+  const roll = rng.next();
+  const mult = shiny ? 4 : 1;
+  let kind: RoamKind;
+  let amount: number;
+  let eggTier: EggTier | undefined;
+  if (roll < 0.62) {
+    kind = "coins";
+    amount = Math.ceil(killCoins(routeHp(Math.min(s.place, ROUTE_COUNT + 400))) * coinMult(s) * 25 * mult);
+    s.coins += amount;
+    s.runCoins += amount;
+    s.lifetimeCoins += amount;
+  } else if (roll < 0.84) {
+    kind = "balls";
+    const tier = s.maxPlace >= 36 ? 2 : s.maxPlace >= 12 ? 1 : 0;
+    amount = (3 + rng.int(6)) * mult;
+    s.balls[tier] = (s.balls[tier] ?? 0) + amount;
+  } else if (roll < 0.95) {
+    kind = "egg";
+    amount = 1;
+    eggTier = s.maxPlace >= 24 && rng.chance(0.3) ? 1 : 0;
+    s.bag[eggTier] = (s.bag[eggTier] ?? 0) + 1;
+  } else {
+    const owners = s.party.length > 0 ? s.party : [];
+    kind = "candy";
+    amount = 10 * mult;
+    for (const id of owners) entry(s, id).candy += amount;
+    if (owners.length === 0) {
+      kind = "coins";
+      amount = Math.ceil(killCoins(routeHp(Math.min(s.place, ROUTE_COUNT + 400))) * coinMult(s) * 25 * mult);
+      s.coins += amount;
+      s.runCoins += amount;
+      s.lifetimeCoins += amount;
+    }
+  }
+  s.rng = rng.state;
+  entry(s, sp).seen = true;
+  events.push({ t: "roam", kind, amount, sp, shiny, ...(eggTier !== undefined ? { tier: eggTier } : {}) });
+  return kind;
 }
 
 export const ballPrice = (s: State, ball: Exclude<BallId, "master">): number => Math.max(1, Math.ceil(unit(s) * BALL_PRICE[ball] * discount(s, "bargain")));

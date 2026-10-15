@@ -6,13 +6,13 @@
 import { detectLang, setLang, t, tn } from "../i18n/index.js";
 import { ACHIEVEMENTS, achievement } from "../engine/achievements.js";
 import { formatDuration, formatNumber } from "../engine/format.js";
-import { type GameEvent, type Result, type State, chooseStarter, click as engineClick, evolutionTargets, offline, tick } from "../engine/game.js";
+import { type GameEvent, type Result, type State, chooseStarter, claimRoamer, click as engineClick, evolutionTargets, marksFor, offline, tick } from "../engine/game.js";
 import { species } from "../engine/dex.js";
-import { REGIONS, place } from "../engine/regions.js";
+import { REGIONS, place, poolOf } from "../engine/regions.js";
 import { Audio, type Sfx } from "./audio.js";
 import { $, h, replace } from "./dom.js";
 import { TAB_ICON, itemImg } from "./icons.js";
-import { placeTitle } from "./labels.js";
+import { eggLabel, placeTitle } from "./labels.js";
 import type { Profile, Session } from "./session.js";
 import { preload, spriteImg } from "./sprites.js";
 import { dialog, toast } from "./ui.js";
@@ -42,6 +42,10 @@ export class App {
   private views!: Record<TabId, View>;
   private tab: TabId = "shop";
   private tabButtons = new Map<TabId, HTMLButtonElement>();
+  /** When the next creature crosses the battle (performance.now() ms). */
+  private nextRoam = 0;
+  /** Boss failures in a row at one place, to tell a stuck player that retiring pays. */
+  private bossFails = { place: -1, count: 0, hinted: -1 };
   private viewHost!: HTMLElement;
   private coinsEl!: HTMLElement;
   private rateEl!: HTMLElement;
@@ -85,6 +89,7 @@ export class App {
       this.begin();
       this.welcomeBack();
     }
+    window.addEventListener("keydown", (e) => this.hotkey(e));
     document.addEventListener("visibilitychange", () => {
       if (document.hidden) this.session.save();
     });
@@ -216,6 +221,7 @@ export class App {
     if (real > 5) this.catchUp(real - dt);
     this.handle(tick(s, dt));
     this.battle.frame(s);
+    this.roamer(now);
     this.uiClock += dt;
     if (this.dirtyFlag || this.uiClock >= UI_EVERY_S) {
       this.uiClock = 0;
@@ -228,6 +234,28 @@ export class App {
     }
     requestAnimationFrame(this.frame);
   };
+
+  /** Bring the next passing creature forward (the end-to-end tests use it). */
+  roamSoon(): void {
+    this.nextRoam = performance.now() + 300;
+  }
+
+  /** Now and then a creature crosses the battle: tap it for a gift. */
+  private roamer(now: number): void {
+    if (this.nextRoam === 0) this.nextRoam = now + 40_000 + Math.random() * 30_000;
+    if (now < this.nextRoam || !this.profile.roamers || document.hidden || $("modal").childElementCount > 0) return;
+    const s = this.state;
+    const pool = poolOf(place(s.place));
+    const sp = pool.length > 0 ? pool[Math.floor(Math.random() * pool.length)]!.id : 1 + Math.floor(Math.random() * 649);
+    const shiny = Math.random() < 1 / 40;
+    this.nextRoam = now + 75_000 + Math.random() * 75_000;
+    this.battle.roam(sp, shiny, () => {
+      const events: GameEvent[] = [];
+      claimRoamer(this.state, sp, shiny, events);
+      this.handle(events);
+      this.dirty();
+    });
+  }
 
   private catchUp(seconds: number): void {
     if (seconds < 30) return;
@@ -345,16 +373,36 @@ export class App {
           this.sound("bell", 0.7);
           this.dirty();
           break;
+        case "roam": {
+          const name = species(e.sp).name;
+          const text =
+            e.kind === "coins" ? t("{name} dropped {amount} coins!", { name, amount: formatNumber(e.amount) })
+            : e.kind === "balls" ? t("{name} left {amount} balls!", { name, amount: e.amount })
+            : e.kind === "egg" ? t("{name} left an egg: {egg}!", { name, egg: eggLabel(e.tier ?? 0) })
+            : t("{name} shared {amount} candy with your party!", { name, amount: e.amount });
+          toast(text, { sprite: e.sp, kind: e.shiny ? "shiny" : "good" });
+          this.sound(e.shiny ? "bell" : "coins", 0.7);
+          break;
+        }
         case "unlocked":
           toast(t("New place: {name}", { name: placeTitle(place(e.place)) }), { kind: "good" });
           this.sound("open", 0.5);
           this.dirty();
           break;
-        case "bossFailed":
+        case "bossFailed": {
           toast(t("It got away! Get stronger and try again."), { kind: "bad" });
+          const f = this.bossFails;
+          f.count = f.place === e.place ? f.count + 1 : 1;
+          f.place = e.place;
+          const pays = marksFor(this.state);
+          if (f.count >= 3 && pays >= 1 && f.hinted !== e.place) {
+            f.hinted = e.place;
+            toast(tn(pays, "Stuck? Retiring now would pay {n} Mark: see the Trainer tab.", "Stuck? Retiring now would pay {n} Marks: see the Trainer tab."), { kind: "big" });
+          }
           this.sound("error", 0.5);
           this.dirty();
           break;
+        }
         case "champion":
           toast(t("You beat the champion of {region}! A Legendary Egg and a Master Ball!", { region: REGIONS[e.region]!.name }), { kind: "big" });
           this.sound("bell", 1, 0.8);
@@ -379,6 +427,22 @@ export class App {
 
   saveProfile(): void {
     this.session.saveProfile();
+  }
+
+  /** Keys: 1 to 5 switch tabs, Space attacks, M mutes, H shows the help. */
+  private hotkey(e: KeyboardEvent): void {
+    if (e.ctrlKey || e.metaKey || e.altKey || e.repeat && e.key !== " ") return;
+    if ($("modal").childElementCount > 0 || !this.running) return;
+    const target = e.target as HTMLElement;
+    if (["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName)) return;
+    const tabs = Object.keys(this.views) as TabId[];
+    if (e.key >= "1" && e.key <= "5") this.showTab(tabs[Number(e.key) - 1]!);
+    else if (e.key === "m" || e.key === "M") this.setMuted(!this.profile.muted);
+    else if (e.key === "h" || e.key === "H" || e.key === "?") showHelp();
+    else if (e.key === " " && target === document.body) {
+      e.preventDefault();
+      this.click(this.battle.el.clientWidth / 2, 150);
+    }
   }
 
   setMuted(muted: boolean): void {

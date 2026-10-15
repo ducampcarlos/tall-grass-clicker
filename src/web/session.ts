@@ -24,9 +24,13 @@ export interface Profile {
   seenIntro: boolean;
   /** Floating damage numbers. */
   numbers: boolean;
+  /** How many levels the shop buys per click: 1, 10, 100 or 0 for as many as the coins allow. */
+  buyAmount: number;
+  /** Creatures that cross the battle now and then, to be tapped for a gift. */
+  roamers: boolean;
 }
 
-const emptyProfile = (): Profile => ({ lang: null, muted: false, musicVolume: 0.4, sfxVolume: 0.8, showShiny: true, seenIntro: false, numbers: true });
+const emptyProfile = (): Profile => ({ lang: null, muted: false, musicVolume: 0.4, sfxVolume: 0.8, showShiny: true, seenIntro: false, numbers: true, buyAmount: 1, roamers: true });
 
 export function parseProfile(text: string | null): Profile {
   const base = emptyProfile();
@@ -41,6 +45,8 @@ export function parseProfile(text: string | null): Profile {
     if (typeof raw.showShiny === "boolean") base.showShiny = raw.showShiny;
     if (typeof raw.seenIntro === "boolean") base.seenIntro = raw.seenIntro;
     if (typeof raw.numbers === "boolean") base.numbers = raw.numbers;
+    if (typeof raw.roamers === "boolean") base.roamers = raw.roamers;
+    if (typeof raw.buyAmount === "number" && [0, 1, 10, 100].includes(raw.buyAmount)) base.buyAmount = raw.buyAmount;
     return base;
   } catch {
     return base;

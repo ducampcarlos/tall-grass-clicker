@@ -37,6 +37,7 @@ export class BattleView {
   private readonly stage = h("div", { class: "stage" });
   private readonly scene = h("div", { class: "scene", "aria-hidden": "true" });
   private lastThrow = -1000;
+  private roamer: HTMLElement | null = null;
   private readonly hpText = h("span");
   private readonly timerBar = h("div", { class: "bar timer" }, h("i"), h("span"));
   private readonly killFill = h("i");
@@ -105,6 +106,28 @@ export class BattleView {
     const el = itemImg(BALL_ICON[ball], `throw ${caught ? "caught" : "broke"}`);
     this.stage.append(el);
     window.setTimeout(() => el.remove(), 1300);
+  }
+
+  /** A creature crosses the card; tapping it gives a gift. Returns false if one is already on its way. */
+  roam(sp: number, shiny: boolean, onTap: () => void): boolean {
+    if (this.roamer) return false;
+    const img = spriteImg(sp, shiny ? "shiny" : "normal", "roam-pic", "");
+    scaleSprite(img, 2, 110, 90);
+    const el = h("button", { class: `roamer ${shiny ? "shiny" : ""}`, type: "button", "aria-label": t("A creature is passing by: tap it for a gift!"), style: { top: `${10 + Math.random() * 14}%` } }, img, h("span", { class: "spark" }, "✦"));
+    const done = () => {
+      el.remove();
+      if (this.roamer === el) this.roamer = null;
+    };
+    el.addEventListener("pointerdown", (e) => {
+      e.stopPropagation();
+      e.preventDefault();
+      done();
+      onTap();
+    });
+    el.addEventListener("animationend", done);
+    this.roamer = el;
+    this.el.append(el);
+    return true;
   }
 
   hit(): void {

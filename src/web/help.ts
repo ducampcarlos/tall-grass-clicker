@@ -7,6 +7,7 @@ export const HELP_LINES = [
   "Creatures hit harder with the right type: fire beats grass, water beats fire. The little numbers on your party tell you how well each one does against the creature in front.",
   "Creatures evolve at their level. Eggs hatch as you click and win. Shiny ones are rare and a half stronger. Catch them all to fill the Pokédex: it makes everything stronger.",
   "When you are stuck, retire: you start over, but keep your Pokédex and earn Marks for the furthest you have been. Marks buy permanent perks and make every run faster.",
+  "Now and then a creature crosses the battle: tap it for a gift. On a keyboard, 1 to 5 switch tabs, Space attacks, M mutes and H shows this help.",
 ];
 
 export const ABOUT_LINES = [

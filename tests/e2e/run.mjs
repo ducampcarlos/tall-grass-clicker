@@ -145,6 +145,95 @@ await test("a ball is thrown when a creature you do not have yet is defeated", a
   await page.waitForSelector(".battle .throw", { timeout: 3000 });
 });
 
+await test("the shop can buy ten levels at once, and remembers the choice", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await tab(page, 1);
+  await page.click('.segment [data-amount="10"]');
+  const before = await game(page);
+  const row = page.locator(".row", { hasText: "Strong Fists" });
+  assert.match(await row.locator(".price").textContent(), /x10/);
+  await row.locator("button.btn").click();
+  const after = await game(page);
+  assert.equal(after.upgrades.click, (before.upgrades.click ?? 0) + 10);
+  await page.reload();
+  await page.waitForSelector(".tab");
+  await tab(page, 1);
+  assert.ok((await page.locator('.segment [data-amount="10"]').getAttribute("class")).includes("primary"));
+});
+
+await test("a passing creature can be tapped for a gift", async () => {
+  const page = await newPage();
+  await page.click(".starter:nth-child(2)");
+  await page.click(".dialog .btn");
+  const before = await game(page);
+  await page.evaluate(() => window.__game.app.roamSoon());
+  await page.waitForSelector(".battle .roamer", { timeout: 5000 });
+  const hits = (await game(page)).stats.clicks;
+  await page.locator(".battle .roamer").dispatchEvent("pointerdown");
+  await page.waitForSelector(".toast");
+  assert.equal(await page.locator(".battle .roamer").count(), 0, "it goes away once tapped");
+  assert.equal((await game(page)).stats.clicks, hits, "tapping it is not an attack");
+  const after = await game(page);
+  const total = (s) => s.coins + s.balls.reduce((a, b) => a + b, 0) * 1e9 + s.bag.reduce((a, b) => a + b, 0) * 1e9 + Object.values(s.dex).reduce((a, d) => a + d.candy, 0) * 1e9;
+  assert.ok(total(after) > total(before), "it left something");
+});
+
+await test("keys switch tabs, attack and mute, but leave text boxes alone", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.keyboard.press("3");
+  assert.ok((await page.locator(".tab:nth-child(3)").getAttribute("class")).includes("on"));
+  await page.keyboard.press("5");
+  assert.ok((await page.locator(".tab:nth-child(5)").getAttribute("class")).includes("on"));
+  const clicks = (await game(page)).stats.clicks;
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press(" ");
+  assert.ok((await game(page)).stats.clicks > clicks, "Space attacks");
+  await page.keyboard.press("m");
+  assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem("tall-grass-clicker.profile.v1") ?? "{}").muted), true);
+  await tab(page, 2);
+  await page.fill(".dex-search, input[type=search], input", "char");
+  await page.keyboard.press("1");
+  assert.ok((await page.locator(".tab:nth-child(2)").getAttribute("class")).includes("on"), "typing a 1 in a text box does not switch tabs");
+});
+
+await test("a player stuck at a boss is told that retiring pays", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await page.evaluate(() => { const s = window.__game.state; s.maxPlace = 40; s.bestPlace = 40; s.marksTotal = 0; for (let i = 0; i < 3; i++) window.__game.app.handle([{ t: "bossFailed", place: 11 }]); });
+  await page.waitForFunction(() => /Stuck\?/.test(document.querySelector("#toasts")?.textContent ?? ""));
+});
+
+await test("the trainer card can be drawn and saved as a picture", async () => {
+  const page = await newPage({ seed, acceptDownloads: true });
+  await page.waitForSelector(".tab");
+  await tab(page, 5);
+  await page.locator(".btn", { hasText: "Trainer card" }).click();
+  await page.waitForSelector("canvas.card-picture");
+  const painted = await page.evaluate(() => {
+    const c = document.querySelector("canvas.card-picture");
+    const data = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    const colours = new Set();
+    for (let i = 0; i < data.length; i += 4 * 97) colours.add((data[i] << 16) | (data[i + 1] << 8) | data[i + 2]);
+    return colours.size;
+  });
+  assert.ok(painted > 30, `the card has more than a flat colour (${painted})`);
+  const [download] = await Promise.all([page.waitForEvent("download"), page.locator(".dialog .btn.primary").click()]);
+  assert.match(download.suggestedFilename(), /\.png$/);
+  const bytes = await (await import("node:fs/promises")).readFile(await download.path());
+  assert.equal(bytes.subarray(1, 4).toString(), "PNG");
+});
+
+await test("a creature's evolution line shows in the Pokédex", async () => {
+  const page = await newPage({ seed });
+  await page.waitForSelector(".tab");
+  await tab(page, 2);
+  await page.evaluate(() => window.__game.app.views.dex.select(4));
+  await page.waitForSelector(".family .fam");
+  assert.equal(await page.locator(".family .fam").count(), 3, "Charmander, Charmeleon, Charizard");
+});
+
 await test("each kind of place has its own background, on the battle and on the page", async () => {
   const page = await newPage({ seed });
   await page.waitForSelector(".tab");
